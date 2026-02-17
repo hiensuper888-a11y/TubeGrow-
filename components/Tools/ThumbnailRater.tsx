@@ -28,11 +28,15 @@ const ThumbnailRater: React.FC = () => {
     if (!image) return;
     setLoading(true);
     try {
-      // Extract base64 part
+      // Extract Mime Type and Base64 Data
+      // Data URL format: data:[<mediatype>][;base64],<data>
+      const mimeType = image.split(';')[0].split(':')[1];
       const base64Data = image.split(',')[1];
-      const result = await analyzeThumbnail(base64Data, context, language);
+      
+      const result = await analyzeThumbnail(base64Data, mimeType, context, language);
       if (result) setAnalysis(result);
     } catch (e) {
+      console.error(e);
       alert(t.thumbnail.error);
     } finally {
       setLoading(false);

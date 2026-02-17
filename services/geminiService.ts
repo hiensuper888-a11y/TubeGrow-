@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Language } from "../types";
 
 const apiKey = process.env.API_KEY || '';
@@ -108,7 +108,7 @@ export const findTrends = async (niche: string, language: Language) => {
   }
 };
 
-export const analyzeThumbnail = async (base64Image: string, context: string, language: Language) => {
+export const analyzeThumbnail = async (base64Image: string, mimeType: string, context: string, language: Language) => {
   try {
     const langName = getLangName(language);
     const response = await ai.models.generateContent({
@@ -117,7 +117,7 @@ export const analyzeThumbnail = async (base64Image: string, context: string, lan
         parts: [
           {
             inlineData: {
-              mimeType: 'image/png', // Assuming PNG for simplicity from canvas/input
+              mimeType: mimeType, // Use dynamic mime type (e.g., image/jpeg, image/png)
               data: base64Image
             }
           },
@@ -235,8 +235,52 @@ export const generateViralStrategy = async (topic: string, language: Language) =
     const isUrl = topic.toLowerCase().includes('youtube.com') || topic.toLowerCase().includes('youtu.be');
     
     let contents = '';
+    
+    // Define Strict Schema to avoid JSON parsing errors
+    const strategySchema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        originalChannel: { type: Type.STRING, description: "Channel name if URL provided, else empty" },
+        strategyTitle: { type: Type.STRING },
+        trendContext: { type: Type.STRING },
+        analysis: {
+          type: Type.OBJECT,
+          properties: {
+            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } }
+          }
+        },
+        targetAudience: { type: Type.STRING },
+        metadata: {
+          type: Type.OBJECT,
+          properties: {
+            titleOptions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            description: { type: Type.STRING },
+            tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+          }
+        },
+        thumbnailIdea: {
+          type: Type.OBJECT,
+          properties: {
+            visualDescription: { type: Type.STRING },
+            textOverlay: { type: Type.STRING }
+          }
+        },
+        scriptOutline: {
+          type: Type.OBJECT,
+          properties: {
+            hook: { type: Type.STRING },
+            contentBeats: { type: Type.ARRAY, items: { type: Type.STRING } },
+            cta: { type: Type.STRING }
+          }
+        },
+        promotionPlan: { type: Type.ARRAY, items: { type: Type.STRING } }
+      }
+    };
+
     let config: any = {
-       responseMimeType: 'application/json'
+       responseMimeType: 'application/json',
+       responseSchema: strategySchema
     };
 
     if (isUrl) {
@@ -253,67 +297,18 @@ export const generateViralStrategy = async (topic: string, language: Language) =
          - What are its Weaknesses (What needs improvement)?
       3. Generate a "Viral Strategy" for a NEW competing video in ${langName}.
       
-      OUTPUT JSON:
-      {
-        "originalChannel": "The exact Channel Name of the input video",
-        "strategyTitle": "Strategy Name",
-        "trendContext": "Why this niche is hot right now.",
-        "analysis": {
-           "strengths": ["Strength 1 in ${langName}", "Strength 2 in ${langName}"],
-           "weaknesses": ["Detailed Improvement 1 in ${langName}", "Detailed Improvement 2 in ${langName}"]
-        },
-        "targetAudience": "Audience details in ${langName}",
-        "metadata": {
-          "titleOptions": ["Better Title 1", "Better Title 2", "Better Title 3"],
-          "description": "3-paragraph description.",
-          "tags": ["tag1", "tag2", "tag3"]
-        },
-        "thumbnailIdea": {
-           "visualDescription": "Detailed English image prompt.",
-           "textOverlay": "Overlay text"
-        },
-        "scriptOutline": {
-           "hook": "Hook in ${langName}",
-           "contentBeats": ["Point 1", "Point 2"],
-           "cta": "CTA"
-        },
-        "promotionPlan": ["Tip 1", "Tip 2"]
-      }`;
+      Ensure JSON output matches the schema.`;
     } else {
       // TOPIC STRATEGY MODE (Standard)
       contents = `You are a YouTube Strategist. Topic: "${topic}".
       
       Generate a Viral Strategy in ${langName}.
       
-      OUTPUT JSON:
-      {
-        "strategyTitle": "Strategy Name",
-        "trendContext": "Why hot?",
-        "analysis": {
-           "strengths": ["Strength 1"],
-           "weaknesses": ["Pitfall 1"]
-        },
-        "targetAudience": "Who?",
-        "metadata": {
-          "titleOptions": ["Title 1", "Title 2", "Title 3"],
-          "description": "Full description.",
-          "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
-        },
-        "thumbnailIdea": {
-           "visualDescription": "Detailed English image prompt.",
-           "textOverlay": "Text"
-        },
-        "scriptOutline": {
-           "hook": "Hook (0-5s)",
-           "contentBeats": ["Point 1", "Point 2", "Point 3"],
-           "cta": "CTA"
-        },
-        "promotionPlan": ["Tip 1", "Tip 2", "Tip 3"]
-      }`;
+      Ensure JSON output matches the schema.`;
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // Keep fast model
+      model: 'gemini-3-flash-preview',
       contents: contents,
       config: config
     });
