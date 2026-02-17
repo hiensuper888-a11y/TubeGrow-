@@ -1,65 +1,144 @@
 import { ChannelStats, YouTubeVideo } from "../types";
 
-// NOTE: In a production environment, you would use the Google API Client Library (gapi)
-// or the YouTube Data API v3 endpoints directly with an OAuth2 token.
-// Since we are client-side only without a backend for secure token exchange,
-// we are mocking this service to demonstrate the UI/UX flow.
+// This file now interacts with the Real YouTube Data API v3
 
-export const connectChannel = async (): Promise<ChannelStats> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        name: "Mr. Creator's Studio",
-        subscriberCount: "12.5K",
-        viewCount: "1,204,500",
-        videoCount: "48",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
-      });
-    }, 1500); // Simulate network delay
-  });
-};
-
-export const getChannelVideos = async (): Promise<YouTubeVideo[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve([
-        {
-          id: "1",
-          title: "How to Grow Your YouTube Channel in 2024 (Zero to Hero)",
-          thumbnail: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop",
-          views: "45.2K",
-          likes: "2.1K",
-          publishedAt: "2 days ago",
-          url: "https://www.youtube.com/watch?v=mock_id_1"
-        },
-        {
-          id: "2",
-          title: "Stop Making These 5 Thumbnail Mistakes!",
-          thumbnail: "https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1000&auto=format&fit=crop",
-          views: "12.8K",
-          likes: "850",
-          publishedAt: "1 week ago",
-          url: "https://www.youtube.com/watch?v=mock_id_2"
-        },
-        {
-          id: "3",
-          title: "I Tried AI for 30 Days - Here's What Happened",
-          thumbnail: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=1000&auto=format&fit=crop",
-          views: "89.1K",
-          likes: "5.4K",
-          publishedAt: "2 weeks ago",
-          url: "https://www.youtube.com/watch?v=mock_id_3"
-        },
-        {
-          id: "4",
-          title: "Best Camera Settings for Cinematic Video",
-          thumbnail: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000&auto=format&fit=crop",
-          views: "5.6K",
-          likes: "320",
-          publishedAt: "3 weeks ago",
-          url: "https://www.youtube.com/watch?v=mock_id_4"
+/**
+ * Fetches the authenticated user's channel statistics.
+ * Requires a valid OAuth 2.0 Access Token with 'https://www.googleapis.com/auth/youtube.readonly' scope.
+ */
+export const getRealChannelStats = async (accessToken: string): Promise<ChannelStats> => {
+  try {
+    const response = await fetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
         }
-      ]);
-    }, 1000);
-  });
+      }
+    );
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to fetch channel');
+    }
+
+    const data = await response.json();
+    
+    if (!data.items || data.items.length === 0) {
+      throw new Error('No YouTube channel found for this Google account.');
+    }
+
+    const item = data.items[0];
+    
+    // Format numbers
+    const formatCount = (numStr: string) => {
+        const num = parseInt(numStr);
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return numStr;
+    };
+
+    return {
+      name: item.snippet.title,
+      subscriberCount: formatCount(item.statistics.subscriberCount),
+      viewCount: formatCount(item.statistics.viewCount),
+      videoCount: item.statistics.videoCount,
+      avatar: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url
+    };
+
+  } catch (error) {
+    console.error("YouTube API Error (Channel):", error);
+    throw error;
+  }
 };
+
+/**
+ * Fetches the latest videos from the user's channel.
+ */
+export const getRealChannelVideos = async (accessToken: string): Promise<YouTubeVideo[]> => {
+  try {
+    // 1. We search for videos "forMine" (owned by the authenticated user)
+    // Order by date to get recent ones.
+    const response = await fetch(
+      'https://www.googleapis.com/youtube/v3/search?part=snippet&forMine=true&type=video&maxResults=8&order=date',
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) throw new Error('Failed to fetch videos');
+
+    const data = await response.json();
+    
+    if (!data.items) return [];
+
+    // The search endpoint doesn't return view counts. 
+    // We need to fetch details for these video IDs to get statistics.
+    const videoIds = data.items.map((item: any) => item.id.videoId).join(',');
+    
+    if(!videoIds) return [];
+
+    const statsResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}`,
+        {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json'
+            }
+        }
+    );
+    
+    const statsData = await statsResponse.json();
+    const statsMap = new Map();
+    if(statsData.items) {
+        statsData.items.forEach((item: any) => {
+            statsMap.set(item.id, item.statistics);
+        });
+    }
+
+    // Map response to our App Type
+    return data.items.map((item: any) => {
+      const stats = statsMap.get(item.id.videoId) || {};
+      
+      const formatCount = (num: string) => {
+        if(!num) return '0';
+        const n = parseInt(num);
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return num;
+      };
+
+      // Calculate relative time
+      const date = new Date(item.snippet.publishedAt);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+      let timeString = `${diffDays} days ago`;
+      if(diffDays > 30) timeString = `${Math.floor(diffDays/30)} months ago`;
+      if(diffDays === 1) timeString = `Yesterday`;
+      if(diffDays === 0) timeString = `Today`;
+
+      return {
+        id: item.id.videoId,
+        title: item.snippet.title,
+        thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url,
+        views: formatCount(stats.viewCount) + ' views',
+        likes: formatCount(stats.likeCount),
+        publishedAt: timeString,
+        url: `https://www.youtube.com/watch?v=${item.id.videoId}`
+      };
+    });
+
+  } catch (error) {
+    console.error("YouTube API Error (Videos):", error);
+    return []; // Return empty array on error to prevent app crash
+  }
+};
+
+// Deprecated Mock functions (kept for fallback if needed, but not used in new flow)
+export const connectChannel = async (): Promise<ChannelStats> => { return {} as any; };
+export const getChannelVideos = async (): Promise<YouTubeVideo[]> => { return []; };

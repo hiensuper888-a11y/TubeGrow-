@@ -1,11 +1,17 @@
-import React, { useState } from 'react';
-import { connectChannel, getChannelVideos } from '../../services/youtubeService';
+import React, { useState, useEffect } from 'react';
+import { getRealChannelStats, getRealChannelVideos } from '../../services/youtubeService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Youtube, Users, SquarePlay, ChartBar, Loader2, ArrowRight, Zap, SearchCheck, LogOut } from 'lucide-react';
+import { Youtube, Users, SquarePlay, ChartBar, Loader2, ArrowRight, Zap, SearchCheck, LogOut, AlertTriangle, Settings } from 'lucide-react';
 import { AppView, ChannelStats, YouTubeVideo } from '../../types';
 
 interface ChannelManagerProps {
   onNavigate: (view: AppView, data?: any) => void;
+}
+
+declare global {
+  interface Window {
+    google: any;
+  }
 }
 
 const ChannelManager: React.FC<ChannelManagerProps> = ({ onNavigate }) => {
@@ -13,25 +19,111 @@ const ChannelManager: React.FC<ChannelManagerProps> = ({ onNavigate }) => {
   const [loading, setLoading] = useState(false);
   const [channel, setChannel] = useState<ChannelStats | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
+  
+  // OAuth State
+  const [tokenClient, setTokenClient] = useState<any>(null);
+  const [clientId, setClientId] = useState('');
+  const [showClientIdInput, setShowClientIdInput] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleConnect = async () => {
+  // Check for env variable
+  useEffect(() => {
+    // @ts-ignore
+    const envClientId = import.meta.env?.VITE_GOOGLE_CLIENT_ID || '';
+    if (envClientId) {
+      setClientId(envClientId);
+    } else {
+      // If no env var, check local storage for persistence
+      const storedId = localStorage.getItem('google_client_id');
+      if(storedId) setClientId(storedId);
+    }
+  }, []);
+
+  // Initialize Google Identity Services
+  useEffect(() => {
+    if (window.google && clientId) {
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/youtube.readonly',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              await fetchData(tokenResponse.access_token);
+            }
+          },
+        });
+        setTokenClient(client);
+      } catch (err) {
+        console.error("GSI Init Error:", err);
+      }
+    }
+  }, [clientId]);
+
+  const fetchData = async (accessToken: string) => {
     setLoading(true);
+    setError(null);
     try {
-      const stats = await connectChannel();
+      const stats = await getRealChannelStats(accessToken);
       setChannel(stats);
-      const vids = await getChannelVideos();
+      const vids = await getRealChannelVideos(accessToken);
       setVideos(vids);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      // In a real app, show a toast or error message
+      setError(error.message || "Failed to connect. Please check your Client ID and try again.");
+      setChannel(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConnect = () => {
+    if (!clientId) {
+      setShowClientIdInput(true);
+      return;
+    }
+
+    if (tokenClient) {
+      // Trigger the Google Popup
+      tokenClient.requestAccessToken();
+    } else {
+      // Re-init if missing (e.g. user just pasted ID)
+      if (window.google) {
+          const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/youtube.readonly',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              await fetchData(tokenResponse.access_token);
+            }
+          },
+        });
+        setTokenClient(client);
+        client.requestAccessToken();
+      } else {
+        alert("Google Identity Services script not loaded. Please refresh.");
+      }
+    }
+  };
+
+  const handleSaveClientId = () => {
+    if(clientId.trim()) {
+        localStorage.setItem('google_client_id', clientId.trim());
+        setShowClientIdInput(false);
+        // Force re-init effect
+        const currentId = clientId;
+        setClientId(''); 
+        setTimeout(() => setClientId(currentId), 10);
     }
   };
 
   const handleDisconnect = () => {
     setChannel(null);
     setVideos([]);
+    if(window.google) {
+        window.google.accounts.oauth2.revoke(tokenClient, () => {
+            console.log('Consent revoked');
+        });
+    }
   };
 
   if (!channel) {
@@ -42,24 +134,66 @@ const ChannelManager: React.FC<ChannelManagerProps> = ({ onNavigate }) => {
         </div>
         <h2 className="text-3xl font-bold mb-4">{t.channel.title}</h2>
         <p className="text-gray-400 max-w-md mb-8">
-          Connect your YouTube channel to access real-time analytics, manage videos, and apply AI optimization directly to your content.
+          Connect your REAL YouTube channel to access live analytics. 
+          Requires a Google Cloud Project with YouTube Data API v3 enabled.
         </p>
-        <button
-          onClick={handleConnect}
-          disabled={loading}
-          className="bg-white text-black hover:bg-gray-200 font-bold py-4 px-8 rounded-full transition-all flex items-center gap-3 transform hover:scale-105 shadow-xl disabled:opacity-50"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="animate-spin" /> {t.channel.connecting}
-            </>
-          ) : (
-            <>
-              <Youtube size={24} className="text-red-600" />
-              {t.channel.connectBtn}
-            </>
-          )}
-        </button>
+
+        {error && (
+            <div className="mb-6 bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg flex items-center gap-2 max-w-lg text-left">
+                <AlertTriangle size={20} className="flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+            </div>
+        )}
+
+        {showClientIdInput ? (
+             <div className="bg-neutral-900 border border-white/10 p-6 rounded-xl w-full max-w-md mb-6 animate-fade-in-up">
+                <label className="block text-left text-sm font-bold text-gray-300 mb-2 flex items-center gap-2">
+                    <Settings size={14} /> Google OAuth Client ID
+                </label>
+                <input 
+                    type="text" 
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    placeholder="e.g. 123456-abcde.apps.googleusercontent.com"
+                    className="w-full bg-black/50 border border-neutral-700 rounded-lg px-4 py-3 text-white mb-4 focus:ring-2 focus:ring-red-500 outline-none text-xs font-mono"
+                />
+                <div className="text-left text-xs text-gray-500 mb-4 space-y-1">
+                    <p>1. Go to <a href="https://console.cloud.google.com/" target="_blank" className="text-blue-400 underline">Google Cloud Console</a>.</p>
+                    <p>2. Create Project & Enable <strong>YouTube Data API v3</strong>.</p>
+                    <p>3. Create <strong>OAuth Client ID</strong> (Web Application).</p>
+                    <p>4. Add your domain to <strong>Authorized JavaScript origins</strong>.</p>
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={() => setShowClientIdInput(false)} className="flex-1 py-2 rounded-lg hover:bg-white/5 text-gray-400">Cancel</button>
+                    <button onClick={handleSaveClientId} className="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded-lg font-bold">Save ID</button>
+                </div>
+             </div>
+        ) : (
+             <div className="flex flex-col gap-4">
+                <button
+                onClick={handleConnect}
+                disabled={loading}
+                className="bg-white text-black hover:bg-gray-200 font-bold py-4 px-8 rounded-full transition-all flex items-center gap-3 transform hover:scale-105 shadow-xl disabled:opacity-50"
+                >
+                {loading ? (
+                    <>
+                    <Loader2 className="animate-spin" /> {t.channel.connecting}
+                    </>
+                ) : (
+                    <>
+                    <Youtube size={24} className="text-red-600" />
+                    {t.channel.connectBtn}
+                    </>
+                )}
+                </button>
+                <button 
+                    onClick={() => setShowClientIdInput(true)}
+                    className="text-xs text-gray-500 hover:text-white underline"
+                >
+                    {clientId ? 'Change Client ID' : 'Configure Client ID'}
+                </button>
+            </div>
+        )}
       </div>
     );
   }
@@ -119,36 +253,40 @@ const ChannelManager: React.FC<ChannelManagerProps> = ({ onNavigate }) => {
         <SquarePlay className="text-red-500" /> {t.channel.recentVideos}
       </h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {videos.map((video) => (
-          <div key={video.id} className="bg-neutral-900 rounded-xl border border-white/5 overflow-hidden group hover:border-red-500/30 transition-all hover:-translate-y-1">
-            <div className="relative aspect-video">
-              <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 p-4">
-                <button
-                  onClick={() => onNavigate(AppView.VIDEO_AUDIT, { url: video.url })}
-                  className="w-full bg-white text-black font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm hover:bg-gray-200"
-                >
-                  <SearchCheck size={16} /> {t.channel.actions.audit}
-                </button>
-                <button
-                  onClick={() => onNavigate(AppView.VIRAL_STRATEGY, { topic: video.url })}
-                  className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm hover:bg-red-700"
-                >
-                  <Zap size={16} /> {t.channel.actions.strategy}
-                </button>
-              </div>
+      {videos.length === 0 ? (
+          <div className="text-center py-10 text-gray-500">No videos found.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {videos.map((video) => (
+            <div key={video.id} className="bg-neutral-900 rounded-xl border border-white/5 overflow-hidden group hover:border-red-500/30 transition-all hover:-translate-y-1">
+                <div className="relative aspect-video">
+                <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 p-4">
+                    <button
+                    onClick={() => onNavigate(AppView.VIDEO_AUDIT, { url: video.url })}
+                    className="w-full bg-white text-black font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm hover:bg-gray-200"
+                    >
+                    <SearchCheck size={16} /> {t.channel.actions.audit}
+                    </button>
+                    <button
+                    onClick={() => onNavigate(AppView.VIRAL_STRATEGY, { topic: video.url })}
+                    className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm hover:bg-red-700"
+                    >
+                    <Zap size={16} /> {t.channel.actions.strategy}
+                    </button>
+                </div>
+                </div>
+                <div className="p-4">
+                <h4 className="font-bold text-sm text-gray-200 line-clamp-2 mb-2 group-hover:text-white transition-colors">{video.title}</h4>
+                <div className="flex justify-between items-center text-xs text-gray-500">
+                    <span>{video.views}</span>
+                    <span>{video.publishedAt}</span>
+                </div>
+                </div>
             </div>
-            <div className="p-4">
-              <h4 className="font-bold text-sm text-gray-200 line-clamp-2 mb-2 group-hover:text-white transition-colors">{video.title}</h4>
-              <div className="flex justify-between items-center text-xs text-gray-500">
-                <span>{video.views} views</span>
-                <span>{video.publishedAt}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 };

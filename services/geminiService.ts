@@ -4,13 +4,20 @@ import { Language } from "../types";
 // Helper to check API key safety
 const getApiKey = () => {
   try {
+    // Check process.env (Standard Node/Vercel)
     // @ts-ignore
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
       // @ts-ignore
       return process.env.API_KEY;
     }
+    // Check import.meta.env (Vite/Modern Bundlers)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+      // @ts-ignore
+      return import.meta.env.VITE_API_KEY;
+    }
   } catch (e) {
-    console.warn("Error accessing process.env", e);
+    console.warn("Error accessing environment variables", e);
   }
   return '';
 };
@@ -194,8 +201,11 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
 export const auditVideo = async (url: string, language: Language) => {
   try {
     const langName = getLangName(language);
+    // NOTE: When using Google Search tools, strictly enforcing JSON Schema can sometimes lead to conflicts.
+    // We remove responseSchema and rely on the prompt + cleanAndParseJson for better stability with tools.
+    
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', 
+      model: 'gemini-3-pro-preview', // Upgraded to Pro for better analysis
       contents: `You are a YouTube Algorithm Expert.
       I have a YouTube video Link: ${url}
       
@@ -204,31 +214,19 @@ export const auditVideo = async (url: string, language: Language) => {
       2. Analyze why this video is good or bad.
       3. CRITICAL: Provide the response entirely in ${langName}.
       
-      RETURN JSON ONLY:
+      RETURN JSON ONLY (No Markdown, just raw JSON if possible, or wrapped in json code block):
       {
         "videoTitle": "Found Title",
         "channelName": "Found Channel Name",
         "score": 85, // 0-100 Algorithm Fit Score
         "summary": "Short explanation in ${langName}.",
-        "positives": ["Good point 1 in ${langName}", "Good point 2 in ${langName}"],
-        "negatives": ["Detailed improvement area 1 in ${langName}", "Detailed improvement area 2 in ${langName}"],
-        "suggestions": ["Action 1 in ${langName}", "Action 2 in ${langName}"]
+        "positives": ["Good point 1", "Good point 2"],
+        "negatives": ["Improvement 1", "Improvement 2"],
+        "suggestions": ["Action 1", "Action 2"]
       }`,
       config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            videoTitle: { type: Type.STRING },
-            channelName: { type: Type.STRING },
-            score: { type: Type.NUMBER },
-            summary: { type: Type.STRING },
-            positives: { type: Type.ARRAY, items: { type: Type.STRING } },
-            negatives: { type: Type.ARRAY, items: { type: Type.STRING } },
-            suggestions: { type: Type.ARRAY, items: { type: Type.STRING } }
-          }
-        }
+        tools: [{ googleSearch: {} }]
+        // Removed responseMimeType: 'application/json' to avoid tool conflict
       }
     });
     return response.text;
@@ -281,82 +279,73 @@ export const generateViralStrategy = async (topic: string, language: Language) =
     
     let contents = '';
     
-    // Define Schema object directly to avoid import issues
-    const strategySchema = {
-      type: Type.OBJECT,
-      properties: {
-        originalChannel: { type: Type.STRING, description: "Channel name if URL provided, else empty" },
-        strategyTitle: { type: Type.STRING },
-        trendContext: { type: Type.STRING },
-        analysis: {
-          type: Type.OBJECT,
-          properties: {
-            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } }
-          }
-        },
-        targetAudience: { type: Type.STRING },
-        metadata: {
-          type: Type.OBJECT,
-          properties: {
-            titleOptions: { type: Type.ARRAY, items: { type: Type.STRING } },
-            description: { type: Type.STRING },
-            tags: { type: Type.ARRAY, items: { type: Type.STRING } }
-          }
-        },
-        thumbnailIdea: {
-          type: Type.OBJECT,
-          properties: {
-            visualDescription: { type: Type.STRING },
-            textOverlay: { type: Type.STRING }
-          }
-        },
-        scriptOutline: {
-          type: Type.OBJECT,
-          properties: {
-            hook: { type: Type.STRING },
-            contentBeats: { type: Type.ARRAY, items: { type: Type.STRING } },
-            cta: { type: Type.STRING }
-          }
-        },
-        promotionPlan: { type: Type.ARRAY, items: { type: Type.STRING } }
-      }
-    };
+    // We define the schema text for the prompt because we are disabling strict JSON mode
+    // when using tools to avoid conflicts.
+    const jsonStructure = `
+    {
+      "originalChannel": "Channel Name (if URL provided)",
+      "strategyTitle": "Viral Strategy Title",
+      "trendContext": "Why is this relevant now?",
+      "analysis": {
+        "strengths": ["Strength 1", "Strength 2"],
+        "weaknesses": ["Weakness 1", "Weakness 2"]
+      },
+      "targetAudience": "Target Audience Description",
+      "metadata": {
+        "titleOptions": ["Title 1", "Title 2", "Title 3"],
+        "description": "Video Description",
+        "tags": ["tag1", "tag2", "tag3"]
+      },
+      "thumbnailIdea": {
+        "visualDescription": "Detailed visual description for AI generator",
+        "textOverlay": "Text on thumbnail"
+      },
+      "scriptOutline": {
+        "hook": "0-10s Hook",
+        "contentBeats": ["Point 1", "Point 2", "Point 3"],
+        "cta": "Call to Action"
+      },
+      "promotionPlan": ["Tactic 1", "Tactic 2"]
+    }`;
 
-    let config: any = {
-       responseMimeType: 'application/json',
-       responseSchema: strategySchema
-    };
+    let config: any = {};
 
     if (isUrl) {
       // URL STRATEGY MODE
       config.tools = [{ googleSearch: {} }];
+      
       contents = `You are a World-Class YouTube Strategist.
       
       INPUT: YouTube URL: "${topic}".
       
       TASK:
-      1. Search this video's title, EXACT Channel Name, and performance.
+      1. Search this video's title, EXACT Channel Name, and performance using Google Search.
       2. ANALYZE the video in ${langName}: 
          - What are its Strengths?
-         - What are its Weaknesses (What needs improvement)?
+         - What are its Weaknesses?
       3. Generate a "Viral Strategy" for a NEW competing video in ${langName}.
       
-      Ensure JSON output matches the schema.`;
+      CRITICAL: RETURN JSON ONLY. Use this structure:
+      ${jsonStructure}`;
     } else {
       // TOPIC STRATEGY MODE (Standard)
+      // For pure text generation without tools, we can safely use strict JSON mode if we want,
+      // but to be consistent and robust, we'll use the prompt method + cleaner.
+      
       contents = `You are a YouTube Strategist. Topic: "${topic}".
       
       Generate a Viral Strategy in ${langName}.
       
-      Ensure JSON output matches the schema.`;
+      CRITICAL: RETURN JSON ONLY. Use this structure:
+      ${jsonStructure}`;
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview', // Upgraded to Pro for better reasoning
       contents: contents,
       config: config
     });
+    
     return response.text;
   } catch (error) {
     console.error("Gemini Strategy Error:", error);
