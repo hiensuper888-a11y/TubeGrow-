@@ -3,24 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TubeGrow AI - Organic View Booster</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <!-- Primary Meta Tags -->
+    <title>TubeGrow AI by Mr.HIEN - Organic View Booster</title>
+    <meta name="title" content="TubeGrow AI by Mr.HIEN - Organic View Booster" />
+    <meta name="description" content="AI-Powered YouTube Growth Tool. Analyze videos, generate viral strategies, and optimize content." />
+
+    <!-- Open Graph / Facebook / Zalo -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://tubegrow-ai.app/" />
+    <meta property="og:title" content="TubeGrow AI by Mr.HIEN" />
+    <meta property="og:description" content="Công cụ AI tăng view tự nhiên, phân tích kênh và tạo chiến lược Viral All-in-One." />
+    <meta property="og:image" content="https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="TubeGrow AI by Mr.HIEN" />
+    <meta property="twitter:description" content="AI-Powered YouTube Growth Tool." />
+    <meta property="twitter:image" content="https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg" />
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+            },
             colors: {
               yt: {
-                red: '#FF0000',
-                dark: '#0F0F0F',
+                red: '#FF0033', // More vibrant red
+                dark: '#0a0a0a',
                 light: '#F1F1F1',
-                gray: '#272727',
+                gray: '#1f1f1f',
                 hover: '#3F3F3F'
               }
             },
             animation: {
-              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'pulse-slow': 'pulse 8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'fade-in': 'fadeIn 0.5s ease-out',
+              'fade-in-up': 'fadeInUp 0.6s ease-out',
+              'float': 'float 6s ease-in-out infinite',
+              'float-delayed': 'float 6s ease-in-out 3s infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-20px)' },
+              }
             }
           }
         }
@@ -28,24 +68,38 @@
     </script>
     <style>
       body {
-        background-color: #0F0F0F;
+        background-color: #0a0a0a;
         color: #F1F1F1;
-        font-family: 'Roboto', sans-serif;
+        font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: #0F0F0F; 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #3F3F3F; 
-        border-radius: 4px;
+        background: #333; 
+        border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #555; 
+      }
+      
+      .custom-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: #333 transparent;
+      }
+      
+      .glass-panel {
+        background: rgba(20, 20, 20, 0.6);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       }
     </style>
   <script type="importmap">

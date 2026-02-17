@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { Language } from "../types";
 
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
@@ -8,16 +9,28 @@ export const checkApiKey = (): boolean => {
   return !!apiKey;
 };
 
-export const generateVideoMetadata = async (topic: string, tone: string) => {
+const getLangName = (lang: Language) => {
+  switch (lang) {
+    case 'vi': return 'Vietnamese';
+    case 'zh': return 'Chinese (Simplified)';
+    case 'ja': return 'Japanese';
+    default: return 'English';
+  }
+};
+
+export const generateVideoMetadata = async (topic: string, tone: string, language: Language) => {
   try {
+    const langName = getLangName(language);
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `You are a YouTube SEO Expert. Generate metadata for a video about "${topic}". Tone: ${tone}.
       
+      IMPORTANT: The content MUST be generated in ${langName}.
+      
       Return a JSON object with:
-      1. 5 click-worthy, high CTR titles.
-      2. A compelling video description (first 2 lines are hooks).
-      3. 15 comma-separated tags.
+      1. 5 click-worthy, high CTR titles in ${langName}.
+      2. A compelling video description in ${langName} (first 2 lines are hooks).
+      3. 15 comma-separated tags in ${langName}.
       
       Output JSON only.`,
       config: {
@@ -42,12 +55,15 @@ export const generateVideoMetadata = async (topic: string, tone: string) => {
   }
 };
 
-export const generateScript = async (title: string, points: string) => {
+export const generateScript = async (title: string, points: string, language: Language) => {
   try {
+    const langName = getLangName(language);
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `Write a full YouTube video script for the title: "${title}".
       Key points to cover: ${points}.
+      
+      IMPORTANT: Write the entire script in ${langName}.
       
       Structure:
       1. Hook (0-30s): Grab attention immediately.
@@ -65,13 +81,16 @@ export const generateScript = async (title: string, points: string) => {
   }
 };
 
-export const findTrends = async (niche: string) => {
+export const findTrends = async (niche: string, language: Language) => {
   try {
+    const langName = getLangName(language);
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `Find the latest trending topics and news in the "${niche}" niche using Google Search.
       Identify 5 breakout trends that would make good YouTube videos right now.
       For each trend, suggest a video angle.
+      
+      IMPORTANT: Provide the response in ${langName}. Focus on trends relevant to speakers of this language if applicable, or global trends explained in ${langName}.
       
       Format the output as a clean Markdown list. Include links to sources where possible.`,
       config: {
@@ -89,8 +108,9 @@ export const findTrends = async (niche: string) => {
   }
 };
 
-export const analyzeThumbnail = async (base64Image: string, context: string) => {
+export const analyzeThumbnail = async (base64Image: string, context: string, language: Language) => {
   try {
+    const langName = getLangName(language);
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -103,6 +123,8 @@ export const analyzeThumbnail = async (base64Image: string, context: string) => 
           },
           {
             text: `Analyze this YouTube thumbnail. Video Context: ${context || 'General YouTube Video'}.
+            
+            IMPORTANT: Provide the analysis in ${langName}.
             
             Provide:
             1. A CTR Score (1-10).
@@ -118,6 +140,186 @@ export const analyzeThumbnail = async (base64Image: string, context: string) => 
     return response.text;
   } catch (error) {
     console.error("Gemini Vision Error:", error);
+    throw error;
+  }
+};
+
+export const auditVideo = async (url: string, language: Language) => {
+  try {
+    const langName = getLangName(language);
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview', 
+      contents: `You are a YouTube Algorithm Expert.
+      I have a YouTube video Link: ${url}
+      
+      TASK:
+      1. Use Google Search to find the EXACT Title and EXACT Channel Name of this video.
+      2. Analyze why this video is good or bad.
+      3. CRITICAL: Provide the response entirely in ${langName}.
+      
+      RETURN JSON ONLY:
+      {
+        "videoTitle": "Found Title",
+        "channelName": "Found Channel Name",
+        "score": 85, // 0-100 Algorithm Fit Score
+        "summary": "Short explanation in ${langName}.",
+        "positives": ["Good point 1 in ${langName}", "Good point 2 in ${langName}"],
+        "negatives": ["Detailed improvement area 1 in ${langName}", "Detailed improvement area 2 in ${langName}"],
+        "suggestions": ["Action 1 in ${langName}", "Action 2 in ${langName}"]
+      }`,
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            videoTitle: { type: Type.STRING },
+            channelName: { type: Type.STRING },
+            score: { type: Type.NUMBER },
+            summary: { type: Type.STRING },
+            positives: { type: Type.ARRAY, items: { type: Type.STRING } },
+            negatives: { type: Type.ARRAY, items: { type: Type.STRING } },
+            suggestions: { type: Type.ARRAY, items: { type: Type.STRING } }
+          }
+        }
+      }
+    });
+    return response.text;
+  } catch (error) {
+    console.error("Gemini Audit Error:", error);
+    throw error;
+  }
+};
+
+export const generateThumbnailImage = async (prompt: string) => {
+  try {
+    // Using gemini-3-pro-image-preview for high quality generation
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-image-preview',
+      contents: {
+        parts: [
+          {
+            text: `Create a high CTR YouTube thumbnail. 
+            PROMPT: ${prompt}. 
+            Style: High saturation, emotional, 4k resolution, youtube catchy style.
+            Ratio: 16:9.`
+          },
+        ],
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "16:9",
+          imageSize: "1K" 
+        }
+      },
+    });
+
+    // Iterate through parts to find the image
+    if (response.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData && part.inlineData.data) {
+          return `data:image/png;base64,${part.inlineData.data}`;
+        }
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Gemini Thumbnail Gen Error:", error);
+    throw error;
+  }
+};
+
+export const generateViralStrategy = async (topic: string, language: Language) => {
+  try {
+    const langName = getLangName(language);
+    const isUrl = topic.toLowerCase().includes('youtube.com') || topic.toLowerCase().includes('youtu.be');
+    
+    let contents = '';
+    let config: any = {
+       responseMimeType: 'application/json'
+    };
+
+    if (isUrl) {
+      // URL STRATEGY MODE
+      config.tools = [{ googleSearch: {} }];
+      contents = `You are a World-Class YouTube Strategist.
+      
+      INPUT: YouTube URL: "${topic}".
+      
+      TASK:
+      1. Search this video's title, EXACT Channel Name, and performance.
+      2. ANALYZE the video in ${langName}: 
+         - What are its Strengths?
+         - What are its Weaknesses (What needs improvement)?
+      3. Generate a "Viral Strategy" for a NEW competing video in ${langName}.
+      
+      OUTPUT JSON:
+      {
+        "originalChannel": "The exact Channel Name of the input video",
+        "strategyTitle": "Strategy Name",
+        "trendContext": "Why this niche is hot right now.",
+        "analysis": {
+           "strengths": ["Strength 1 in ${langName}", "Strength 2 in ${langName}"],
+           "weaknesses": ["Detailed Improvement 1 in ${langName}", "Detailed Improvement 2 in ${langName}"]
+        },
+        "targetAudience": "Audience details in ${langName}",
+        "metadata": {
+          "titleOptions": ["Better Title 1", "Better Title 2", "Better Title 3"],
+          "description": "3-paragraph description.",
+          "tags": ["tag1", "tag2", "tag3"]
+        },
+        "thumbnailIdea": {
+           "visualDescription": "Detailed English image prompt.",
+           "textOverlay": "Overlay text"
+        },
+        "scriptOutline": {
+           "hook": "Hook in ${langName}",
+           "contentBeats": ["Point 1", "Point 2"],
+           "cta": "CTA"
+        },
+        "promotionPlan": ["Tip 1", "Tip 2"]
+      }`;
+    } else {
+      // TOPIC STRATEGY MODE (Standard)
+      contents = `You are a YouTube Strategist. Topic: "${topic}".
+      
+      Generate a Viral Strategy in ${langName}.
+      
+      OUTPUT JSON:
+      {
+        "strategyTitle": "Strategy Name",
+        "trendContext": "Why hot?",
+        "analysis": {
+           "strengths": ["Strength 1"],
+           "weaknesses": ["Pitfall 1"]
+        },
+        "targetAudience": "Who?",
+        "metadata": {
+          "titleOptions": ["Title 1", "Title 2", "Title 3"],
+          "description": "Full description.",
+          "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+        },
+        "thumbnailIdea": {
+           "visualDescription": "Detailed English image prompt.",
+           "textOverlay": "Text"
+        },
+        "scriptOutline": {
+           "hook": "Hook (0-5s)",
+           "contentBeats": ["Point 1", "Point 2", "Point 3"],
+           "cta": "CTA"
+        },
+        "promotionPlan": ["Tip 1", "Tip 2", "Tip 3"]
+      }`;
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview', // Keep fast model
+      contents: contents,
+      config: config
+    });
+    return response.text;
+  } catch (error) {
+    console.error("Gemini Strategy Error:", error);
     throw error;
   }
 };

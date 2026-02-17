@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { findTrends } from '../../services/geminiService';
 import { TrendingUp, Loader2, Globe, ExternalLink } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const TrendHunter: React.FC = () => {
+  const { t, language } = useLanguage();
   const [niche, setNiche] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ text?: string, groundingMetadata?: any } | null>(null);
@@ -13,10 +15,10 @@ const TrendHunter: React.FC = () => {
     setLoading(true);
     setResult(null);
     try {
-      const data = await findTrends(niche);
+      const data = await findTrends(niche, language);
       setResult(data);
     } catch (e) {
-      alert("Error finding trends. Ensure you have access to Google Search tools.");
+      alert(t.trend.error);
     } finally {
       setLoading(false);
     }
@@ -25,18 +27,18 @@ const TrendHunter: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
-        <TrendingUp className="text-blue-500" /> Trend Hunter
+        <TrendingUp className="text-blue-500" /> {t.trend.title}
       </h2>
       
       <div className="bg-yt-gray p-6 rounded-xl border border-neutral-800 mb-8">
-        <label className="block text-sm font-medium text-gray-400 mb-2">Your Niche</label>
+        <label className="block text-sm font-medium text-gray-400 mb-2">{t.trend.nicheLabel}</label>
         <div className="flex gap-4">
           <input
             type="text"
             value={niche}
             onChange={(e) => setNiche(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="e.g., Tech Reviews, Vegan Cooking, Minecraft"
+            placeholder={t.trend.nichePlaceholder}
             className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
           <button
@@ -44,7 +46,7 @@ const TrendHunter: React.FC = () => {
             disabled={loading || !niche}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center disabled:opacity-50"
           >
-            {loading ? <Loader2 className="animate-spin" /> : 'Find Trends'}
+            {loading ? <Loader2 className="animate-spin" /> : t.trend.btnFind}
           </button>
         </div>
       </div>
@@ -53,7 +55,7 @@ const TrendHunter: React.FC = () => {
         <div className="animate-fade-in space-y-6">
           <div className="bg-neutral-900/50 p-6 rounded-xl border border-neutral-800">
             <h3 className="text-xl font-bold mb-4 text-blue-400 flex items-center gap-2">
-              <Globe size={20} /> Analysis from Web
+              <Globe size={20} /> {t.trend.analysisTitle}
             </h3>
             <div className="prose prose-invert prose-blue max-w-none">
               <ReactMarkdown>{result.text || ''}</ReactMarkdown>
@@ -62,7 +64,7 @@ const TrendHunter: React.FC = () => {
 
           {result.groundingMetadata?.groundingChunks && (
             <div className="bg-neutral-900/50 p-6 rounded-xl border border-neutral-800">
-              <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Sources</h4>
+              <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">{t.trend.sourcesTitle}</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {result.groundingMetadata.groundingChunks.map((chunk: any, i: number) => {
                   if (chunk.web) {

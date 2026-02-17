@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { generateVideoMetadata } from '../../services/geminiService';
 import { Copy, Loader2, Sparkles } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const Optimizer: React.FC = () => {
+  const { t, language } = useLanguage();
   const [topic, setTopic] = useState('');
   const [tone, setTone] = useState('Exciting');
   const [loading, setLoading] = useState(false);
@@ -12,12 +14,17 @@ const Optimizer: React.FC = () => {
     if (!topic) return;
     setLoading(true);
     try {
-      const jsonStr = await generateVideoMetadata(topic, tone);
+      // Use original tone value key, but prompt will handle context, or we can map it. 
+      // The prompt just uses the string, so passing the translated tone might be weird if the AI expects English keywords, 
+      // but Gemini handles multi-lingual tone prompts well.
+      // However, keeping internal values simple (English keys) is safer for logic if we had any. 
+      // Here we just pass the value from the select.
+      const jsonStr = await generateVideoMetadata(topic, tone, language);
       if (jsonStr) {
         setResult(JSON.parse(jsonStr));
       }
     } catch (e) {
-      alert("Failed to generate. Please check API Key and try again.");
+      alert(t.optimizer.error);
     } finally {
       setLoading(false);
     }
@@ -30,33 +37,31 @@ const Optimizer: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
-        <Sparkles className="text-yt-red" /> Metadata Optimizer
+        <Sparkles className="text-yt-red" /> {t.optimizer.title}
       </h2>
       
       <div className="bg-yt-gray p-6 rounded-xl border border-neutral-800 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3">
-            <label className="block text-sm font-medium text-gray-400 mb-2">Video Topic / Idea</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">{t.optimizer.topicLabel}</label>
             <input
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g., How to bake sourdough bread for beginners"
+              placeholder={t.optimizer.topicPlaceholder}
               className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-yt-red focus:outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Tone</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">{t.optimizer.toneLabel}</label>
             <select
               value={tone}
               onChange={(e) => setTone(e.target.value)}
               className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-yt-red focus:outline-none"
             >
-              <option>Exciting</option>
-              <option>Educational</option>
-              <option>Serious</option>
-              <option>Funny</option>
-              <option>Clickbaity</option>
+              {Object.keys(t.optimizer.tones).map((key) => (
+                <option key={key} value={key}>{t.optimizer.tones[key]}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -65,7 +70,7 @@ const Optimizer: React.FC = () => {
           disabled={loading || !topic}
           className="mt-4 w-full bg-yt-red hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? <><Loader2 className="animate-spin mr-2" /> Optimizing...</> : 'Generate Metadata'}
+          {loading ? <><Loader2 className="animate-spin mr-2" /> {t.optimizer.btnGenerating}</> : t.optimizer.btnGenerate}
         </button>
       </div>
 
@@ -73,7 +78,7 @@ const Optimizer: React.FC = () => {
         <div className="space-y-6 animate-fade-in">
           {/* Titles */}
           <div className="bg-neutral-900/50 p-6 rounded-xl border border-neutral-800">
-            <h3 className="text-lg font-bold mb-4 text-blue-400">Recommended Titles</h3>
+            <h3 className="text-lg font-bold mb-4 text-blue-400">{t.optimizer.resultTitles}</h3>
             <div className="space-y-2">
               {result.titles?.map((title: string, idx: number) => (
                 <div key={idx} className="flex items-center justify-between group p-2 hover:bg-neutral-800 rounded">
@@ -89,7 +94,7 @@ const Optimizer: React.FC = () => {
           {/* Description */}
           <div className="bg-neutral-900/50 p-6 rounded-xl border border-neutral-800">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-green-400">Description</h3>
+              <h3 className="text-lg font-bold text-green-400">{t.optimizer.resultDesc}</h3>
               <button onClick={() => copyToClipboard(result.description)} className="text-gray-500 hover:text-white">
                 <Copy size={16} />
               </button>
@@ -100,7 +105,7 @@ const Optimizer: React.FC = () => {
           {/* Tags */}
           <div className="bg-neutral-900/50 p-6 rounded-xl border border-neutral-800">
              <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-yellow-400">Tags</h3>
+              <h3 className="text-lg font-bold text-yellow-400">{t.optimizer.resultTags}</h3>
               <button onClick={() => copyToClipboard(result.tags)} className="text-gray-500 hover:text-white">
                 <Copy size={16} />
               </button>

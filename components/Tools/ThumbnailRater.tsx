@@ -2,8 +2,10 @@ import React, { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { analyzeThumbnail } from '../../services/geminiService';
 import { Image as ImageIcon, Upload, Loader2, X } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const ThumbnailRater: React.FC = () => {
+  const { t, language } = useLanguage();
   const [image, setImage] = useState<string | null>(null);
   const [context, setContext] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,10 +30,10 @@ const ThumbnailRater: React.FC = () => {
     try {
       // Extract base64 part
       const base64Data = image.split(',')[1];
-      const result = await analyzeThumbnail(base64Data, context);
+      const result = await analyzeThumbnail(base64Data, context, language);
       if (result) setAnalysis(result);
     } catch (e) {
-      alert("Error analyzing image.");
+      alert(t.thumbnail.error);
     } finally {
       setLoading(false);
     }
@@ -46,7 +48,7 @@ const ThumbnailRater: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
-        <ImageIcon className="text-purple-500" /> Thumbnail Rater
+        <ImageIcon className="text-purple-500" /> {t.thumbnail.title}
       </h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -62,20 +64,20 @@ const ThumbnailRater: React.FC = () => {
              ) : (
                <div className="text-center p-6 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                  <Upload className="mx-auto text-gray-500 mb-2" size={32} />
-                 <p className="text-gray-400 font-medium">Click to upload thumbnail</p>
-                 <p className="text-gray-600 text-sm mt-1">Supports JPG, PNG</p>
+                 <p className="text-gray-400 font-medium">{t.thumbnail.uploadText}</p>
+                 <p className="text-gray-600 text-sm mt-1">{t.thumbnail.uploadSubtext}</p>
                </div>
              )}
              <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
           </div>
 
           <div>
-             <label className="block text-sm font-medium text-gray-400 mb-2">Video Context (Optional)</label>
+             <label className="block text-sm font-medium text-gray-400 mb-2">{t.thumbnail.contextLabel}</label>
              <input
               type="text"
               value={context}
               onChange={(e) => setContext(e.target.value)}
-              placeholder="e.g. A gaming let's play video about horror games"
+              placeholder={t.thumbnail.contextPlaceholder}
               className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
              />
           </div>
@@ -85,7 +87,7 @@ const ThumbnailRater: React.FC = () => {
             disabled={loading || !image}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
           >
-            {loading ? <><Loader2 className="animate-spin mr-2" /> Analyzing AI Vision...</> : 'Analyze Thumbnail'}
+            {loading ? <><Loader2 className="animate-spin mr-2" /> {t.thumbnail.btnAnalyzing}</> : t.thumbnail.btnAnalyze}
           </button>
         </div>
 
@@ -93,13 +95,13 @@ const ThumbnailRater: React.FC = () => {
            {!analysis && !loading && (
              <div className="h-full flex flex-col items-center justify-center text-gray-600">
                <ImageIcon size={48} className="mb-4 opacity-20" />
-               <p>Upload an image to get AI feedback on color, composition, and CTR potential.</p>
+               <p>{t.thumbnail.emptyState}</p>
              </div>
            )}
            {loading && (
              <div className="h-full flex flex-col items-center justify-center text-purple-400">
                <Loader2 size={48} className="animate-spin mb-4" />
-               <p>Studying pixels...</p>
+               <p>{t.thumbnail.loadingState}</p>
              </div>
            )}
            {analysis && (

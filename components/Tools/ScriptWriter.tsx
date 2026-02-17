@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { generateScript } from '../../services/geminiService';
 import { FileText, Loader2 } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const ScriptWriter: React.FC = () => {
+  const { t, language } = useLanguage();
   const [title, setTitle] = useState('');
   const [points, setPoints] = useState('');
   const [script, setScript] = useState('');
@@ -13,12 +15,12 @@ const ScriptWriter: React.FC = () => {
     if (!title) return;
     setLoading(true);
     try {
-      const generatedScript = await generateScript(title, points);
+      const generatedScript = await generateScript(title, points, language);
       if (generatedScript) {
         setScript(generatedScript);
       }
     } catch (e) {
-      alert("Error generating script. Please try again.");
+      alert(t.script.error);
     } finally {
       setLoading(false);
     }
@@ -28,28 +30,28 @@ const ScriptWriter: React.FC = () => {
     <div className="max-w-4xl mx-auto h-[calc(100vh-4rem)] flex flex-col">
        <div className="flex-none">
         <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
-          <FileText className="text-yt-red" /> Script Writer
+          <FileText className="text-yt-red" /> {t.script.title}
         </h2>
         
         <div className="bg-yt-gray p-6 rounded-xl border border-neutral-800 mb-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Video Title</label>
+              <label className="block text-sm font-medium text-gray-400 mb-2">{t.script.videoTitleLabel}</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-yt-red focus:outline-none"
-                placeholder="The Main Title of Your Video"
+                placeholder={t.script.videoTitlePlaceholder}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Key Points (Optional)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-2">{t.script.pointsLabel}</label>
               <textarea
                 value={points}
                 onChange={(e) => setPoints(e.target.value)}
                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-yt-red focus:outline-none h-24 resize-none"
-                placeholder="What should be covered? e.g., Introduction, 3 main tips, Conclusion"
+                placeholder={t.script.pointsPlaceholder}
               />
             </div>
             <button
@@ -57,7 +59,7 @@ const ScriptWriter: React.FC = () => {
               disabled={loading || !title}
               className="w-full bg-yt-red hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
             >
-              {loading ? <><Loader2 className="animate-spin mr-2" /> Writing Script...</> : 'Generate Script'}
+              {loading ? <><Loader2 className="animate-spin mr-2" /> {t.script.btnGenerating}</> : t.script.btnGenerate}
             </button>
           </div>
         </div>

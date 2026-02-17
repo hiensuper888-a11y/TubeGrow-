@@ -5,12 +5,23 @@ import Optimizer from './components/Tools/Optimizer';
 import ScriptWriter from './components/Tools/ScriptWriter';
 import TrendHunter from './components/Tools/TrendHunter';
 import ThumbnailRater from './components/Tools/ThumbnailRater';
+import ThumbnailMaker from './components/Tools/ThumbnailMaker';
+import VideoAudit from './components/Tools/VideoAudit';
+import ViralStrategy from './components/Tools/ViralStrategy';
+import AuthPage from './components/Auth/AuthPage';
 import { AppView } from './types';
 import { Menu } from 'lucide-react';
+import { LanguageProvider } from './contexts/LanguageContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-const App: React.FC = () => {
+const MainApp: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
 
   const renderView = () => {
     switch (currentView) {
@@ -24,20 +35,33 @@ const App: React.FC = () => {
         return <TrendHunter />;
       case AppView.THUMBNAIL_RATER:
         return <ThumbnailRater />;
+      case AppView.THUMBNAIL_MAKER:
+        return <ThumbnailMaker />;
+      case AppView.VIDEO_AUDIT:
+        return <VideoAudit />;
+      case AppView.VIRAL_STRATEGY:
+        return <ViralStrategy />;
       default:
         return <Dashboard onNavigate={setCurrentView} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-yt-dark text-white flex overflow-hidden">
+    <div className="min-h-screen bg-[#080808] text-white flex overflow-hidden font-sans selection:bg-yt-red selection:text-white relative">
+      {/* Enhanced Background Gradients with Float Animation */}
+      <div className="fixed inset-0 w-full h-full pointer-events-none z-0">
+          <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-red-800/10 rounded-full blur-[120px] animate-float opacity-50"></div>
+          <div className="absolute bottom-[-20%] left-[-10%] w-[700px] h-[700px] bg-blue-900/10 rounded-full blur-[130px] animate-float-delayed opacity-40"></div>
+          <div className="absolute top-[40%] left-[40%] w-[500px] h-[500px] bg-purple-900/5 rounded-full blur-[100px] animate-pulse-slow"></div>
+          {/* Subtle grid pattern */}
+          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay"></div>
+      </div>
+
       {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+      <div 
+        className={`fixed inset-0 bg-black/80 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setIsMobileMenuOpen(false)}
+      />
 
       {/* Sidebar */}
       <Sidebar 
@@ -50,24 +74,36 @@ const App: React.FC = () => {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Header */}
-        <div className="md:hidden flex items-center p-4 border-b border-neutral-800 bg-yt-gray">
+      <div className="flex-1 flex flex-col min-w-0 z-10 relative">
+        {/* Mobile Header with Glassmorphism */}
+        <div className="md:hidden flex items-center p-4 border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-30">
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 -ml-2 text-gray-400 hover:text-white"
+            className="p-2 -ml-2 text-gray-300 hover:text-white transition-colors"
           >
             <Menu size={24} />
           </button>
-          <span className="ml-2 font-bold text-lg">TubeGrow AI</span>
+          <span className="ml-3 font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">TubeGrow AI</span>
         </div>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          {renderView()}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar scroll-smooth">
+          <div className="animate-fade-in max-w-7xl mx-auto">
+             {renderView()}
+          </div>
         </main>
       </div>
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <LanguageProvider>
+        <MainApp />
+      </LanguageProvider>
+    </AuthProvider>
   );
 };
 
