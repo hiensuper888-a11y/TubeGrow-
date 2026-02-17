@@ -279,8 +279,6 @@ export const generateViralStrategy = async (topic: string, language: Language) =
     
     let contents = '';
     
-    // We define the schema text for the prompt because we are disabling strict JSON mode
-    // when using tools to avoid conflicts.
     const jsonStructure = `
     {
       "originalChannel": "Channel Name (if URL provided)",
@@ -311,7 +309,6 @@ export const generateViralStrategy = async (topic: string, language: Language) =
     let config: any = {};
 
     if (isUrl) {
-      // URL STRATEGY MODE
       config.tools = [{ googleSearch: {} }];
       
       contents = `You are a World-Class YouTube Strategist.
@@ -328,10 +325,6 @@ export const generateViralStrategy = async (topic: string, language: Language) =
       CRITICAL: RETURN JSON ONLY. Use this structure:
       ${jsonStructure}`;
     } else {
-      // TOPIC STRATEGY MODE (Standard)
-      // For pure text generation without tools, we can safely use strict JSON mode if we want,
-      // but to be consistent and robust, we'll use the prompt method + cleaner.
-      
       contents = `You are a YouTube Strategist. Topic: "${topic}".
       
       Generate a Viral Strategy in ${langName}.
@@ -350,5 +343,52 @@ export const generateViralStrategy = async (topic: string, language: Language) =
   } catch (error) {
     console.error("Gemini Strategy Error:", error);
     throw error;
+  }
+};
+
+export const getPublicChannelInfo = async (query: string, language: Language) => {
+  try {
+      const response = await ai.models.generateContent({
+          model: 'gemini-3-pro-preview',
+          contents: `You are a YouTube Data Analyst.
+          
+          TASK: Use Google Search to find detailed information about the YouTube channel matching: "${query}".
+          
+          I need:
+          1. Exact Channel Name
+          2. Approximate Subscriber Count
+          3. Total View Count (if available)
+          4. Total Video Count (approx)
+          5. 4 Most Recent or Popular Videos (Title, Views, Date, URL)
+          
+          Return JSON ONLY:
+          {
+              "name": "Channel Name",
+              "subscriberCount": "1.5M",
+              "viewCount": "250M",
+              "videoCount": "450",
+              "avatar": "https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo.png", 
+              "recentVideos": [
+                  {
+                      "title": "Video Title",
+                      "views": "View count string",
+                      "publishedAt": "e.g. 2 days ago",
+                      "url": "https://youtube.com/...",
+                      "thumbnail": "https://img.youtube.com/vi/[VIDEO_ID]/mqdefault.jpg"
+                  }
+              ]
+          }
+          
+          Note: For thumbnails, try to construct the URL if you find the Video ID (e.g. img.youtube.com/vi/ID/mqdefault.jpg).
+          `,
+          config: {
+              tools: [{ googleSearch: {} }]
+          }
+      });
+      
+      return response.text;
+  } catch (error) {
+      console.error("Gemini Channel Search Error:", error);
+      throw error;
   }
 };
