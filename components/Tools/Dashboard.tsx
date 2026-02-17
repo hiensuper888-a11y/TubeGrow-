@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppView } from '../../types';
-import { ArrowRight, BarChart3, Target, Zap, SearchCheck, ImagePlus, UserCircle2 } from 'lucide-react';
+import { ArrowRight, ChartBar, Target, Zap, SearchCheck, ImagePlus } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -76,7 +76,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
         <div className="bg-gradient-to-b from-neutral-800/50 to-neutral-900/50 backdrop-blur-md p-6 rounded-2xl border border-white/5 hover:border-blue-500/50 transition-all duration-300 group cursor-pointer hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/20" onClick={() => onNavigate(AppView.TREND_HUNTER)}>
           <div className="w-14 h-14 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500 mb-5 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-            <BarChart3 size={28} />
+            <ChartBar size={28} />
           </div>
           <h3 className="text-xl font-bold mb-2 text-gray-100">{t.dashboard.trendTitle}</h3>
           <p className="text-gray-400 text-sm mb-6 line-clamp-3 leading-relaxed">{t.dashboard.trendDesc}</p>

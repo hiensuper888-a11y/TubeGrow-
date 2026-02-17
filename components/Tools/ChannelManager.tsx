@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { connectChannel, getChannelVideos } from '../../services/youtubeService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Youtube, Users, PlaySquare, BarChart, Loader2, ArrowRight, Zap, SearchCheck, LogOut } from 'lucide-react';
+import { Youtube, Users, SquarePlay, ChartBar, Loader2, ArrowRight, Zap, SearchCheck, LogOut } from 'lucide-react';
 import { AppView, ChannelStats, YouTubeVideo } from '../../types';
 
 interface ChannelManagerProps {
@@ -98,14 +98,14 @@ const ChannelManager: React.FC<ChannelManagerProps> = ({ onNavigate }) => {
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-2 text-gray-400 mb-1">
-                <BarChart size={16} />
+                <ChartBar size={16} />
                 <span className="text-xs uppercase tracking-wider">{t.channel.stats.views}</span>
               </div>
               <div className="text-2xl font-bold text-white">{channel.viewCount}</div>
             </div>
              <div className="text-center">
               <div className="flex items-center justify-center gap-2 text-gray-400 mb-1">
-                <PlaySquare size={16} />
+                <SquarePlay size={16} />
                 <span className="text-xs uppercase tracking-wider">{t.channel.stats.videos}</span>
               </div>
               <div className="text-2xl font-bold text-white">{channel.videoCount}</div>
@@ -116,7 +116,7 @@ const ChannelManager: React.FC<ChannelManagerProps> = ({ onNavigate }) => {
 
       {/* Video List */}
       <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-        <PlaySquare className="text-red-500" /> {t.channel.recentVideos}
+        <SquarePlay className="text-red-500" /> {t.channel.recentVideos}
       </h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
