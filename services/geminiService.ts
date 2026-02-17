@@ -214,7 +214,7 @@ export const auditVideo = async (url: string, language: Language) => {
   }
 };
 
-export const generateThumbnailImage = async (prompt: string) => {
+export const generateThumbnailImage = async (prompt: string, aspectRatio: string = "16:9") => {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
@@ -224,13 +224,13 @@ export const generateThumbnailImage = async (prompt: string) => {
             text: `Create a high CTR YouTube thumbnail. 
             PROMPT: ${prompt}. 
             Style: High saturation, emotional, 4k resolution, youtube catchy style.
-            Ratio: 16:9.`
+            Ratio: ${aspectRatio}.`
           },
         ],
       },
       config: {
         imageConfig: {
-          aspectRatio: "16:9",
+          aspectRatio: aspectRatio,
           imageSize: "1K" 
         }
       },

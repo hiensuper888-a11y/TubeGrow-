@@ -18,56 +18,64 @@ const ViralStrategy: React.FC = () => {
   const handleDownloadStrategy = () => {
     if (!result) return;
 
-    const content = `
+    try {
+      const getList = (arr: any[]) => Array.isArray(arr) ? arr.map(s => `- ${s}`).join('\n') : '';
+      const getTags = (arr: any[]) => Array.isArray(arr) ? arr.map(t => `#${t}`).join(' ') : '';
+
+      const content = `
 # ${result.strategyTitle || 'Viral Strategy'}
 ${result.originalChannel ? `**Original Channel:** ${result.originalChannel}\n` : ''}
 
 ## Analysis
 **Strengths:**
-${result.analysis?.strengths?.map((s: string) => `- ${s}`).join('\n')}
+${getList(result.analysis?.strengths)}
 
 **Weaknesses (Needs Improvement):**
-${result.analysis?.weaknesses?.map((w: string) => `- ${w}`).join('\n')}
+${getList(result.analysis?.weaknesses)}
 
 ## Target Audience
-${result.targetAudience}
+${result.targetAudience || 'N/A'}
 
 ## Trend Context
-${result.trendContext}
+${result.trendContext || 'N/A'}
 
 ## Metadata
 ### Titles
-${result.metadata?.titleOptions?.map((t: string) => `- ${t}`).join('\n')}
+${getList(result.metadata?.titleOptions)}
 
 ### Description
-${result.metadata?.description}
+${result.metadata?.description || 'N/A'}
 
 ### Tags
-${result.metadata?.tags?.map((t: string) => `#${t}`).join(' ')}
+${getTags(result.metadata?.tags)}
 
 ## Thumbnail Idea
-**Visual:** ${result.thumbnailIdea?.visualDescription}
-**Text Overlay:** ${result.thumbnailIdea?.textOverlay}
+**Visual:** ${result.thumbnailIdea?.visualDescription || 'N/A'}
+**Text Overlay:** ${result.thumbnailIdea?.textOverlay || 'N/A'}
 
 ## Script Outline
-**Hook:** ${result.scriptOutline?.hook}
+**Hook:** ${result.scriptOutline?.hook || 'N/A'}
 **Content Beats:**
-${result.scriptOutline?.contentBeats?.map((b: string) => `- ${b}`).join('\n')}
-**CTA:** ${result.scriptOutline?.cta}
+${getList(result.scriptOutline?.contentBeats)}
+**CTA:** ${result.scriptOutline?.cta || 'N/A'}
 
 ## Promotion Plan
-${result.promotionPlan?.map((p: string) => `- ${p}`).join('\n')}
-    `.trim();
+${getList(result.promotionPlan)}
+      `.trim();
 
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `strategy-${Date.now()}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      const blob = new Blob([content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `TubeGrow-Strategy-${Date.now()}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed", error);
+      alert("Could not generate download file.");
+    }
   };
 
   const handleGenerate = async () => {
@@ -153,9 +161,9 @@ ${result.promotionPlan?.map((p: string) => `- ${p}`).join('\n')}
               <div className="absolute right-0 top-0 hidden md:block">
                 <button
                   onClick={handleDownloadStrategy}
-                  className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg"
+                  className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg group"
                 >
-                  <Download size={18} />
+                  <Download size={18} className="group-hover:text-yt-red transition-colors" />
                   <span className="text-sm font-medium">{t.viral.btnDownloadStrategy}</span>
                 </button>
               </div>
