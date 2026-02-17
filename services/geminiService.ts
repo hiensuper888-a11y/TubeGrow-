@@ -1,26 +1,36 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Language } from "../types";
 
-// FIX: Safely access process.env to prevent browser crash
+// Helper to check API key safety
 const getApiKey = () => {
   try {
     // @ts-ignore
-    if (typeof process !== 'undefined' && process.env) {
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
       // @ts-ignore
-      return process.env.API_KEY || '';
+      return process.env.API_KEY;
     }
   } catch (e) {
-    // Ignore error if process is undefined
+    console.warn("Error accessing process.env", e);
   }
   return '';
 };
 
 const apiKey = getApiKey();
-const ai = new GoogleGenAI({ apiKey });
+
+// Initialize AI cautiously. 
+// If key is empty, requests will fail but app won't crash on load.
+let ai: GoogleGenAI;
+try {
+    ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-to-prevent-crash' });
+} catch (error) {
+    console.error("Failed to initialize GoogleGenAI", error);
+    // Fallback object to prevent immediate crash, though calls will fail
+    ai = { models: {}, chats: {} } as any; 
+}
 
 // Helper to check API key
 export const checkApiKey = (): boolean => {
-  return !!apiKey;
+  return !!apiKey && apiKey !== 'dummy-key-to-prevent-crash';
 };
 
 const getLangName = (lang: Language) => {
