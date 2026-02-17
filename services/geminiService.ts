@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { Language } from "../types";
 
 const apiKey = process.env.API_KEY || '';
@@ -15,6 +15,29 @@ const getLangName = (lang: Language) => {
     case 'zh': return 'Chinese (Simplified)';
     case 'ja': return 'Japanese';
     default: return 'English';
+  }
+};
+
+// Robust JSON Cleaner and Parser
+export const cleanAndParseJson = (text: string) => {
+  try {
+    if (!text) return null;
+    let clean = text.trim();
+    // Remove markdown code blocks
+    clean = clean.replace(/```json/g, '').replace(/```/g, '');
+    
+    // Find the JSON object
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      clean = clean.substring(firstBrace, lastBrace + 1);
+    }
+    
+    return JSON.parse(clean);
+  } catch (error) {
+    console.error("JSON Parse Error:", error);
+    return null;
   }
 };
 
@@ -117,7 +140,7 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
         parts: [
           {
             inlineData: {
-              mimeType: mimeType, // Use dynamic mime type (e.g., image/jpeg, image/png)
+              mimeType: mimeType,
               data: base64Image
             }
           },
@@ -193,7 +216,6 @@ export const auditVideo = async (url: string, language: Language) => {
 
 export const generateThumbnailImage = async (prompt: string) => {
   try {
-    // Using gemini-3-pro-image-preview for high quality generation
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: {
@@ -214,7 +236,6 @@ export const generateThumbnailImage = async (prompt: string) => {
       },
     });
 
-    // Iterate through parts to find the image
     if (response.candidates?.[0]?.content?.parts) {
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData && part.inlineData.data) {
@@ -236,8 +257,8 @@ export const generateViralStrategy = async (topic: string, language: Language) =
     
     let contents = '';
     
-    // Define Strict Schema to avoid JSON parsing errors
-    const strategySchema: Schema = {
+    // Define Schema object directly to avoid import issues
+    const strategySchema = {
       type: Type.OBJECT,
       properties: {
         originalChannel: { type: Type.STRING, description: "Channel name if URL provided, else empty" },

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { generateVideoMetadata } from '../../services/geminiService';
+import { generateVideoMetadata, cleanAndParseJson } from '../../services/geminiService';
 import { Copy, Loader2, Sparkles } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -14,14 +14,15 @@ const Optimizer: React.FC = () => {
     if (!topic) return;
     setLoading(true);
     try {
-      // Use original tone value key, but prompt will handle context, or we can map it. 
-      // The prompt just uses the string, so passing the translated tone might be weird if the AI expects English keywords, 
-      // but Gemini handles multi-lingual tone prompts well.
-      // However, keeping internal values simple (English keys) is safer for logic if we had any. 
-      // Here we just pass the value from the select.
       const jsonStr = await generateVideoMetadata(topic, tone, language);
       if (jsonStr) {
-        setResult(JSON.parse(jsonStr));
+        const parsed = cleanAndParseJson(jsonStr);
+        if (parsed) {
+          setResult(parsed);
+        } else {
+           // Fallback or alert if parsing really fails despite cleaning
+           alert(t.optimizer.error);
+        }
       }
     } catch (e) {
       alert(t.optimizer.error);

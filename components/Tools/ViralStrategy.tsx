@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { generateViralStrategy, generateThumbnailImage } from '../../services/geminiService';
+import { generateViralStrategy, generateThumbnailImage, cleanAndParseJson } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Zap, Loader2, Target, Type, Image as ImageIcon, FileText, Megaphone, CheckCircle2, Copy, Download, SearchCheck, ThumbsUp, ThumbsDown, Tv } from 'lucide-react';
 
@@ -10,16 +10,6 @@ const ViralStrategy: React.FC = () => {
   const [imageLoading, setImageLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
-
-  const cleanJson = (text: string) => {
-    let clean = text.trim();
-    if (clean.startsWith('```json')) {
-      clean = clean.replace(/^```json/, '').replace(/```$/, '');
-    } else if (clean.startsWith('```')) {
-      clean = clean.replace(/^```/, '').replace(/```$/, '');
-    }
-    return clean.trim();
-  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -90,9 +80,8 @@ ${result.promotionPlan?.map((p: string) => `- ${p}`).join('\n')}
       // 1. Generate Text Strategy
       const jsonStr = await generateViralStrategy(topic, language);
       if (jsonStr) {
-        try {
-            const cleanedStr = cleanJson(jsonStr);
-            const parsed = JSON.parse(cleanedStr);
+        const parsed = cleanAndParseJson(jsonStr);
+        if (parsed) {
             setResult(parsed);
 
             // 2. Generate Image immediately if we have a description
@@ -105,10 +94,8 @@ ${result.promotionPlan?.map((p: string) => `- ${p}`).join('\n')}
                   .catch(err => console.error("Image gen failed", err))
                   .finally(() => setImageLoading(false));
             }
-
-        } catch (parseError) {
-            console.error("JSON Parse Error:", parseError, jsonStr);
-            alert("Failed to parse the strategy. Please try again.");
+        } else {
+             alert("Failed to parse the strategy. Please try again.");
         }
       }
     } catch (e) {

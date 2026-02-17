@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { auditVideo } from '../../services/geminiService';
+import { auditVideo, cleanAndParseJson } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Search, Loader2, CheckCircle2, XCircle, TrendingUp, Youtube } from 'lucide-react';
 
@@ -16,7 +16,12 @@ const VideoAudit: React.FC = () => {
     try {
       const jsonStr = await auditVideo(url, language);
       if (jsonStr) {
-        setResult(JSON.parse(jsonStr));
+        const parsed = cleanAndParseJson(jsonStr);
+        if (parsed) {
+          setResult(parsed);
+        } else {
+          alert(t.audit.error);
+        }
       }
     } catch (e) {
       alert(t.audit.error);
