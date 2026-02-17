@@ -33,6 +33,7 @@ const translations = {
       thumbnailRater: 'Thumbnail Rater',
       thumbnailMaker: 'Thumbnail Maker',
       videoAudit: 'Video Audit',
+      channelManager: 'My Channel',
       subtitle: 'AI-Powered Organic Growth',
     },
     dashboard: {
@@ -154,6 +155,22 @@ const translations = {
       analysisSection: 'Competitor Analysis',
       strengths: 'Strengths (Keep)',
       weaknesses: 'Weaknesses (Exploit)',
+    },
+    channel: {
+      title: 'Channel Manager',
+      connectBtn: 'Connect YouTube Channel',
+      connecting: 'Connecting to YouTube...',
+      stats: {
+        subs: 'Subscribers',
+        views: 'Total Views',
+        videos: 'Total Videos'
+      },
+      recentVideos: 'Recent Videos',
+      actions: {
+        audit: 'Audit Video',
+        strategy: 'Viral Strategy'
+      },
+      disconnect: 'Disconnect'
     }
   },
   vi: {
@@ -181,6 +198,7 @@ const translations = {
       thumbnailRater: 'Đánh giá Thumbnail',
       thumbnailMaker: 'Tạo Thumbnail AI',
       videoAudit: 'Phân tích Video',
+      channelManager: 'Kênh của tôi',
       subtitle: 'Tăng trưởng tự nhiên với AI',
     },
     dashboard: {
@@ -302,6 +320,22 @@ const translations = {
       analysisSection: 'Phân tích Đối thủ',
       strengths: 'Điểm Mạnh (Cần học hỏi)',
       weaknesses: 'Điểm Yếu (Cần khai thác)',
+    },
+    channel: {
+      title: 'Quản lý Kênh',
+      connectBtn: 'Kết nối Kênh YouTube',
+      connecting: 'Đang kết nối YouTube...',
+      stats: {
+        subs: 'Người đăng ký',
+        views: 'Tổng View',
+        videos: 'Tổng Video'
+      },
+      recentVideos: 'Video Gần đây',
+      actions: {
+        audit: 'Phân tích Video',
+        strategy: 'Tạo Chiến lược'
+      },
+      disconnect: 'Ngắt kết nối'
     }
   },
   zh: {
@@ -329,6 +363,7 @@ const translations = {
       thumbnailRater: '缩略图评分',
       thumbnailMaker: 'AI 缩略图生成',
       videoAudit: '视频诊断',
+      channelManager: '我的频道',
       subtitle: 'AI驱动的自然增长',
     },
     dashboard: {
@@ -450,6 +485,22 @@ const translations = {
       analysisSection: '竞争对手分析',
       strengths: '优势 (值得学习)',
       weaknesses: '劣势 (可利用)',
+    },
+    channel: {
+      title: '频道管理',
+      connectBtn: '连接 YouTube 频道',
+      connecting: '正在连接 YouTube...',
+      stats: {
+        subs: '订阅者',
+        views: '总观看次数',
+        videos: '视频总数'
+      },
+      recentVideos: '最近视频',
+      actions: {
+        audit: '诊断视频',
+        strategy: '病毒式策略'
+      },
+      disconnect: '断开连接'
     }
   },
   ja: {
@@ -477,6 +528,7 @@ const translations = {
       thumbnailRater: 'サムネイル評価',
       thumbnailMaker: 'AIサムネイル作成',
       videoAudit: '動画診断',
+      channelManager: 'マイチャンネル',
       subtitle: 'AIを活用した自然な成長',
     },
     dashboard: {
@@ -598,6 +650,22 @@ const translations = {
       analysisSection: '競合分析',
       strengths: '強み（学ぶべき点）',
       weaknesses: '弱み（攻めるべき点）',
+    },
+    channel: {
+      title: 'チャンネル管理',
+      connectBtn: 'YouTubeチャンネルを接続',
+      connecting: 'YouTubeに接続中...',
+      stats: {
+        subs: 'チャンネル登録者数',
+        views: '総再生回数',
+        videos: '総動画数'
+      },
+      recentVideos: '最近の動画',
+      actions: {
+        audit: '動画を診断',
+        strategy: 'バイラル戦略'
+      },
+      disconnect: '切断'
     }
   }
 };

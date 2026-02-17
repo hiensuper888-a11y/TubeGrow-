@@ -7,7 +7,8 @@ export enum AppView {
   THUMBNAIL_RATER = 'THUMBNAIL_RATER',
   THUMBNAIL_MAKER = 'THUMBNAIL_MAKER',
   VIDEO_AUDIT = 'VIDEO_AUDIT',
-  VIRAL_STRATEGY = 'VIRAL_STRATEGY'
+  VIRAL_STRATEGY = 'VIRAL_STRATEGY',
+  CHANNEL_MANAGER = 'CHANNEL_MANAGER'
 }
 
 export type Language = 'en' | 'vi' | 'zh' | 'ja';
@@ -21,4 +22,22 @@ export interface GeneratedContent {
 
 export interface ToolProps {
   isActive: boolean;
+}
+
+export interface YouTubeVideo {
+  id: string;
+  title: string;
+  thumbnail: string;
+  views: string;
+  likes: string;
+  publishedAt: string;
+  url: string;
+}
+
+export interface ChannelStats {
+  subscriberCount: string;
+  viewCount: string;
+  videoCount: string;
+  avatar: string;
+  name: string;
 }

@@ -1,15 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { generateViralStrategy, generateThumbnailImage, cleanAndParseJson } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Zap, Loader2, Target, Type, Image as ImageIcon, FileText, Megaphone, CheckCircle2, Copy, Download, SearchCheck, ThumbsUp, ThumbsDown, Tv } from 'lucide-react';
 
-const ViralStrategy: React.FC = () => {
+interface ViralStrategyProps {
+  initialTopic?: string;
+}
+
+const ViralStrategy: React.FC<ViralStrategyProps> = ({ initialTopic }) => {
   const { t, language } = useLanguage();
-  const [topic, setTopic] = useState('');
+  const [topic, setTopic] = useState(initialTopic || '');
   const [loading, setLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialTopic) {
+      setTopic(initialTopic);
+    }
+  }, [initialTopic]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);

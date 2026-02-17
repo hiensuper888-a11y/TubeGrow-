@@ -8,6 +8,7 @@ import ThumbnailRater from './components/Tools/ThumbnailRater';
 import ThumbnailMaker from './components/Tools/ThumbnailMaker';
 import VideoAudit from './components/Tools/VideoAudit';
 import ViralStrategy from './components/Tools/ViralStrategy';
+import ChannelManager from './components/Tools/ChannelManager';
 import AuthPage from './components/Auth/AuthPage';
 import { AppView } from './types';
 import { Menu } from 'lucide-react';
@@ -18,15 +19,26 @@ const MainApp: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeVideoData, setActiveVideoData] = useState<{ url?: string; topic?: string }>({});
 
   if (!isAuthenticated) {
     return <AuthPage />;
   }
 
+  const handleNavigate = (view: AppView, data?: any) => {
+    if (data) {
+      setActiveVideoData(data);
+    }
+    setCurrentView(view);
+    setIsMobileMenuOpen(false);
+  };
+
   const renderView = () => {
     switch (currentView) {
       case AppView.DASHBOARD:
-        return <Dashboard onNavigate={setCurrentView} />;
+        return <Dashboard onNavigate={handleNavigate} />;
+      case AppView.CHANNEL_MANAGER:
+        return <ChannelManager onNavigate={handleNavigate} />;
       case AppView.OPTIMIZER:
         return <Optimizer />;
       case AppView.SCRIPT_WRITER:
@@ -38,11 +50,11 @@ const MainApp: React.FC = () => {
       case AppView.THUMBNAIL_MAKER:
         return <ThumbnailMaker />;
       case AppView.VIDEO_AUDIT:
-        return <VideoAudit />;
+        return <VideoAudit initialUrl={activeVideoData.url} />;
       case AppView.VIRAL_STRATEGY:
-        return <ViralStrategy />;
+        return <ViralStrategy initialTopic={activeVideoData.topic || activeVideoData.url} />;
       default:
-        return <Dashboard onNavigate={setCurrentView} />;
+        return <Dashboard onNavigate={handleNavigate} />;
     }
   };
 
@@ -67,8 +79,10 @@ const MainApp: React.FC = () => {
       <Sidebar 
         currentView={currentView} 
         onViewChange={(view) => {
-          setCurrentView(view);
-          setIsMobileMenuOpen(false);
+            setCurrentView(view);
+            setIsMobileMenuOpen(false);
+            // Clear active data when manually navigating via sidebar to keep tools clean
+            setActiveVideoData({});
         }}
         isOpen={isMobileMenuOpen}
       />

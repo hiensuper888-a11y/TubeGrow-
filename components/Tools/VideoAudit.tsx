@@ -1,13 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auditVideo, cleanAndParseJson } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Search, Loader2, CheckCircle2, XCircle, TrendingUp, Youtube } from 'lucide-react';
+import { Search, Loader2, CheckCircle2, XCircle, TrendingUp, Youtube, ExternalLink } from 'lucide-react';
 
-const VideoAudit: React.FC = () => {
+interface VideoAuditProps {
+  initialUrl?: string;
+}
+
+const VideoAudit: React.FC<VideoAuditProps> = ({ initialUrl }) => {
   const { t, language } = useLanguage();
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(initialUrl || '');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+
+  useEffect(() => {
+    if (initialUrl) {
+      setUrl(initialUrl);
+    }
+  }, [initialUrl]);
 
   const handleAudit = async () => {
     if (!url) return;
@@ -92,6 +102,17 @@ const VideoAudit: React.FC = () => {
 
              <div className="flex-1 text-center md:text-left">
                <h3 className="text-xl font-bold text-white mb-1">{result.videoTitle || 'Unknown Video'}</h3>
+               
+               {/* Display URL */}
+               <a 
+                 href={url} 
+                 target="_blank" 
+                 rel="noopener noreferrer" 
+                 className="text-xs text-blue-400 hover:text-blue-300 mb-2 inline-flex items-center gap-1 transition-colors"
+               >
+                 {url} <ExternalLink size={10} />
+               </a>
+
                <p className="text-sm text-gray-400 mb-3">{result.channelName || 'Unknown Channel'}</p>
                <p className="text-gray-300 italic">"{result.summary}"</p>
              </div>

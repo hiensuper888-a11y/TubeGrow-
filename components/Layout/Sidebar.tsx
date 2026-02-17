@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Wand2, FileText, TrendingUp, Image as ImageIcon, SearchCheck, ImagePlus, LogOut, Zap, Play } from 'lucide-react';
+import { LayoutDashboard, Wand2, FileText, TrendingUp, Image as ImageIcon, SearchCheck, ImagePlus, LogOut, Zap, Play, UserCircle } from 'lucide-react';
 import { AppView, Language } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,6 +16,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) 
 
   const menuItems = [
     { id: AppView.DASHBOARD, label: t.sidebar.dashboard, icon: LayoutDashboard },
+    { id: AppView.CHANNEL_MANAGER, label: t.sidebar.channelManager, icon: UserCircle },
     { id: AppView.VIRAL_STRATEGY, label: t.sidebar.viralStrategy, icon: Zap },
     { id: AppView.VIDEO_AUDIT, label: t.sidebar.videoAudit, icon: SearchCheck },
     { id: AppView.TREND_HUNTER, label: t.sidebar.trendHunter, icon: TrendingUp },
