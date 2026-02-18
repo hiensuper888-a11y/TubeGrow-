@@ -1,19 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Sidebar from './components/Layout/Sidebar';
-import Dashboard from './components/Tools/Dashboard';
-import Optimizer from './components/Tools/Optimizer';
-import ScriptWriter from './components/Tools/ScriptWriter';
-import TrendHunter from './components/Tools/TrendHunter';
-import ThumbnailRater from './components/Tools/ThumbnailRater';
-import ThumbnailMaker from './components/Tools/ThumbnailMaker';
-import VideoAudit from './components/Tools/VideoAudit';
-import ViralStrategy from './components/Tools/ViralStrategy';
-import ChannelManager from './components/Tools/ChannelManager';
 import AuthPage from './components/Auth/AuthPage';
 import { AppView } from './types';
-import { Menu } from 'lucide-react';
+import { Menu, Loader2 } from 'lucide-react';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+
+// Lazy load components to split chunks and fix build size warnings
+const Dashboard = React.lazy(() => import('./components/Tools/Dashboard'));
+const Optimizer = React.lazy(() => import('./components/Tools/Optimizer'));
+const ScriptWriter = React.lazy(() => import('./components/Tools/ScriptWriter'));
+const TrendHunter = React.lazy(() => import('./components/Tools/TrendHunter'));
+const ThumbnailRater = React.lazy(() => import('./components/Tools/ThumbnailRater'));
+const ThumbnailMaker = React.lazy(() => import('./components/Tools/ThumbnailMaker'));
+const VideoAudit = React.lazy(() => import('./components/Tools/VideoAudit'));
+const ViralStrategy = React.lazy(() => import('./components/Tools/ViralStrategy'));
+const ChannelManager = React.lazy(() => import('./components/Tools/ChannelManager'));
 
 const MainApp: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -103,7 +105,16 @@ const MainApp: React.FC = () => {
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar scroll-smooth">
           <div className="animate-fade-in max-w-7xl mx-auto">
-             {renderView()}
+             <Suspense fallback={
+                <div className="flex h-full w-full items-center justify-center min-h-[50vh]">
+                    <div className="flex flex-col items-center gap-4">
+                        <Loader2 className="animate-spin text-yt-red" size={48} />
+                        <p className="text-gray-500 text-sm font-medium animate-pulse">Loading Module...</p>
+                    </div>
+                </div>
+             }>
+                {renderView()}
+             </Suspense>
           </div>
         </main>
       </div>
