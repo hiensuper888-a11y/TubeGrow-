@@ -1,9 +1,13 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { Language } from "../types";
 
-// Helper to check API key safety
+// --- CONFIGURATION ---
+const OPENAI_API_KEY = '';
+
+// Helper to check API keys
 export const checkApiKey = (): boolean => {
-  return !!process.env.API_KEY;
+  // Check if we have at least one valid key to operate
+  return !!process.env.API_KEY || !!OPENAI_API_KEY;
 };
 
 const getLangName = (lang: Language) => {
@@ -15,369 +19,463 @@ const getLangName = (lang: Language) => {
   }
 };
 
+// --- CLIENT HELPERS ---
+
+const getGeminiClient = () => {
+    if (!process.env.API_KEY) {
+        return null;
+    }
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
+
+// --- FALLBACK LOGIC ---
+
 /**
- * ULTRA-ROBUST JSON PARSER
- * Extracts JSON objects from messy AI responses (Markdown, text, etc.)
+ * Handles errors from OpenAI and attempts to use Gemini as a fallback.
+ * If fallback fails or is unavailable, throws a descriptive error.
  */
+const handleOpenAIFallback = async <T>(
+    originalError: any, 
+    fallbackAction: (ai: any) => Promise<T>
+): Promise<T> => {
+    const ai = getGeminiClient();
+    const isQuotaError = originalError.message?.includes('quota') || originalError.message?.includes('billing');
+
+    // If Gemini is not configured
+    if (!ai) {
+        if (isQuotaError) {
+             throw new Error("OpenAI Quota Exceeded. Please check your plan and billing details at platform.openai.com, or configure a Gemini API Key in your environment.");
+        }
+        throw new Error(originalError.message || "OpenAI Service Unavailable and no Gemini API Key configured.");
+    }
+
+    // Try Fallback
+    try {
+        return await fallbackAction(ai);
+    } catch (geminiError: any) {
+        console.warn("Gemini Fallback Failed:", geminiError);
+        // Prioritize the Quota error message if it exists, as it's more actionable for the user's primary config
+        if (isQuotaError) {
+             throw new Error("OpenAI Quota Exceeded and Gemini Fallback failed. Please check your API keys.");
+        }
+        throw new Error("AI Services Unavailable. Please try again later.");
+    }
+};
+
+// --- OPENAI HELPERS ---
+
+const callOpenAIChat = async (messages: any[], model: string = 'gpt-4o', jsonMode: boolean = false) => {
+    if (!OPENAI_API_KEY) {
+        throw new Error("OpenAI API Key is missing.");
+    }
+
+    try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                response_format: jsonMode ? { type: "json_object" } : undefined
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || 'OpenAI API Error');
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (error) {
+        console.warn("OpenAI Chat Error (attempting fallback):", error);
+        throw error;
+    }
+};
+
+const callOpenAIImage = async (prompt: string) => {
+    if (!OPENAI_API_KEY) {
+        throw new Error("OpenAI API Key is missing.");
+    }
+
+    try {
+        const response = await fetch('https://api.openai.com/v1/images/generations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+                model: "dall-e-3",
+                prompt: prompt,
+                n: 1,
+                size: "1024x1024",
+                response_format: "b64_json"
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || 'OpenAI Image Error');
+        }
+        
+        const data = await response.json();
+        return data.data[0].b64_json;
+    } catch (error) {
+        console.warn("OpenAI Image Error (attempting fallback):", error);
+        throw error;
+    }
+};
+
+// --- UTILS ---
 export const cleanAndParseJson = (text: string) => {
   if (!text) return null;
-  
   try {
-    // 1. Try direct parse first (best case)
     return JSON.parse(text);
   } catch (e) {
-    // 2. Try extracting from Markdown code blocks ```json ... ```
     const markdownMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (markdownMatch && markdownMatch[1]) {
-      try {
-        return JSON.parse(markdownMatch[1]);
-      } catch (e2) {
-        // Continue to step 3
-      }
+      try { return JSON.parse(markdownMatch[1]); } catch (e2) {}
     }
-
-    // 3. Brute force: Find the first '{' and the last '}'
-    try {
-      const firstBrace = text.indexOf('{');
-      const lastBrace = text.lastIndexOf('}');
-      
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const jsonCandidate = text.substring(firstBrace, lastBrace + 1);
-        return JSON.parse(jsonCandidate);
-      }
-    } catch (e3) {
-      console.error("JSON Parse Logic Failed completely:", e3);
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+       try { return JSON.parse(text.substring(firstBrace, lastBrace + 1)); } catch (e3) {}
     }
-    
     return null;
   }
 };
 
+// --- FUNCTIONS ---
+
+/**
+ * OPTIMIZER: Try OpenAI -> Fallback Gemini
+ */
 export const generateVideoMetadata = async (topic: string, tone: string, language: Language) => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const langName = getLangName(language);
+  const prompt = `You are a YouTube SEO Expert. Generate metadata for a video about "${topic}". Tone: ${tone}.
+  IMPORTANT: The content MUST be generated in ${langName}.
+  Return a JSON object with:
+  1. 5 click-worthy, high CTR titles.
+  2. A compelling video description (first 2 lines are hooks).
+  3. 15 comma-separated tags.
   
+  JSON Structure: { "titles": [], "description": "", "tags": "" }`;
+
   try {
-    const langName = getLangName(language);
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `You are a YouTube SEO Expert. Generate metadata for a video about "${topic}". Tone: ${tone}.
-      
-      IMPORTANT: The content MUST be generated in ${langName}.
-      
-      Return a JSON object with:
-      1. 5 click-worthy, high CTR titles in ${langName}.
-      2. A compelling video description in ${langName} (first 2 lines are hooks).
-      3. 15 comma-separated tags in ${langName}.
-      
-      Output JSON only. Do not add any markdown formatting.`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            titles: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            },
-            description: { type: Type.STRING },
-            tags: { type: Type.STRING }
-          }
-        }
-      }
+    return await callOpenAIChat([{ role: 'user', content: prompt }], 'gpt-4o', true);
+  } catch (e) {
+    return handleOpenAIFallback(e, async (ai) => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        return response.text;
     });
-    return response.text;
-  } catch (error) {
-    console.error("Gemini Optimization Error:", error);
-    throw error;
   }
 };
 
+/**
+ * SCRIPT WRITER: Try OpenAI -> Fallback Gemini
+ */
 export const generateScript = async (title: string, points: string, language: Language) => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const langName = getLangName(language);
+  const prompt = `Write a full YouTube video script for the title: "${title}".
+  Key points to cover: ${points}.
+  IMPORTANT: Write the entire script in ${langName}.
+  Structure: Hook (0-30s), Intro, Body, CTA, Outro.
+  Use Markdown formatting. Make it engaging.`;
 
   try {
-    const langName = getLangName(language);
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: `Write a full YouTube video script for the title: "${title}".
-      Key points to cover: ${points}.
-      
-      IMPORTANT: Write the entire script in ${langName}.
-      
-      Structure:
-      1. Hook (0-30s): Grab attention immediately.
-      2. Intro: Brief context.
-      3. Body: Detailed content.
-      4. CTA (Call to Action).
-      5. Outro.
-      
-      Use Markdown formatting. Make it engaging and conversational.`,
+    return await callOpenAIChat([{ role: 'user', content: prompt }], 'gpt-4o');
+  } catch (e) {
+    return handleOpenAIFallback(e, async (ai) => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-pro-preview',
+            contents: prompt
+        });
+        return response.text;
     });
-    return response.text;
-  } catch (error) {
-    console.error("Gemini Script Error:", error);
-    throw error;
   }
 };
 
+/**
+ * TREND HUNTER: Primary Gemini (for Search) -> Fallback OpenAI (Text only) -> Fallback Gemini (Text only)
+ */
 export const findTrends = async (niche: string, language: Language) => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getGeminiClient();
+  const langName = getLangName(language);
 
-  try {
-    const langName = getLangName(language);
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: `Find the latest trending topics and news in the "${niche}" niche using Google Search.
-      Identify 5 breakout trends that would make good YouTube videos right now.
-      For each trend, suggest a video angle.
-      
-      IMPORTANT: Provide the response in ${langName}. Focus on trends relevant to speakers of this language if applicable, or global trends explained in ${langName}.
-      
-      Format the output as a clean Markdown list. Include links to sources where possible.`,
-      config: {
-        tools: [{ googleSearch: {} }]
+  // 1. Try Gemini with Search Grounding
+  if (ai) {
+      try {
+        const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `Find the latest trending topics and news in the "${niche}" niche using Google Search.
+        Identify 5 breakout trends that would make good YouTube videos right now.
+        For each trend, suggest a video angle.
+        IMPORTANT: Provide the response in ${langName}.
+        Format the output as a clean Markdown list. Include links to sources where possible.`,
+        config: {
+            tools: [{ googleSearch: {} }]
+        }
+        });
+        
+        return {
+           text: response.text,
+           groundingMetadata: response.candidates?.[0]?.groundingMetadata
+        };
+      } catch (error) {
+        console.warn("Gemini Search Error (trying OpenAI fallback):", error);
       }
-    });
-    
-    return {
-      text: response.text,
-      groundingMetadata: response.candidates?.[0]?.groundingMetadata
-    };
-  } catch (error) {
-    console.error("Gemini Trend Error:", error);
-    throw error;
+  }
+
+  // 2. Fallback to OpenAI (Brainstorming only)
+  try {
+      const fallbackText = await callOpenAIChat([{role: 'user', content: `Suggest 5 evergreen trending topics for "${niche}" in ${langName}.`}]);
+      return { text: fallbackText, groundingMetadata: null };
+  } catch (e: any) {
+      // 3. Fallback to Gemini Basic (Brainstorming only)
+      return handleOpenAIFallback(e, async (aiFallback) => {
+           const response = await aiFallback.models.generateContent({
+              model: 'gemini-3-flash-preview',
+              contents: `Suggest 5 evergreen trending topics for "${niche}" in ${langName}.`
+           });
+           return { text: response.text, groundingMetadata: null };
+      });
   }
 };
 
+/**
+ * THUMBNAIL RATER: Primary Gemini (Multimodal) -> Fallback OpenAI Vision
+ */
 export const analyzeThumbnail = async (base64Image: string, mimeType: string, context: string, language: Language) => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getGeminiClient();
+  const langName = getLangName(language);
 
+  // 1. Try Gemini Vision
+  if (ai) {
+    try {
+        const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+            parts: [
+            { inlineData: { mimeType: mimeType, data: base64Image } },
+            { text: `Analyze this YouTube thumbnail. Video Context: ${context || 'General YouTube Video'}. 
+                IMPORTANT: Provide the analysis in ${langName}.
+                Provide: CTR Score (1-10), 3 Strengths, 3 Weaknesses, and Actionable advice.` }
+            ]
+        }
+        });
+        return response.text;
+    } catch (error) {
+        console.warn("Gemini Vision failed, trying OpenAI...", error);
+    }
+  }
+
+  // 2. Try OpenAI Vision
   try {
-    const langName = getLangName(language);
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Image
-            }
-          },
-          {
-            text: `Analyze this YouTube thumbnail. Video Context: ${context || 'General YouTube Video'}.
-            
-            IMPORTANT: Provide the analysis in ${langName}.
-            
-            Provide:
-            1. A CTR Score (1-10).
-            2. 3 Strengths.
-            3. 3 Weaknesses.
-            4. Specific actionable advice to improve it (colors, text, emotion, composition).
-            
-            Keep it concise and critical.`
-          }
-        ]
+     const messages = [{
+          role: "user",
+          content: [
+              { type: "text", text: `Analyze this thumbnail. Context: ${context}. Language: ${langName}. Give Score, Strengths, Weaknesses.` },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+          ]
+      }];
+      return await callOpenAIChat(messages, 'gpt-4o');
+  } catch (e: any) {
+      if (e.message?.includes('quota')) {
+          throw new Error("OpenAI Quota Exceeded (Fallback Failed). Please check billing details.");
       }
-    });
-    return response.text;
-  } catch (error) {
-    console.error("Gemini Vision Error:", error);
-    throw error;
+      throw new Error("Analysis failed on both Gemini and OpenAI.");
   }
 };
 
+/**
+ * VIDEO AUDIT: Primary Gemini (Search) -> Fallback OpenAI (Inference)
+ */
 export const auditVideo = async (url: string, language: Language) => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getGeminiClient();
+  const langName = getLangName(language);
 
-  try {
-    const langName = getLangName(language);
-    
-    // Fallback: If URL is invalid, throw early
-    if (!url.includes('youtu')) {
-        throw new Error("Invalid YouTube URL");
+  // 1. Try Gemini with Search
+  if (ai) {
+    try {
+        if (!url.includes('youtu')) throw new Error("Invalid URL");
+
+        const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `You are a YouTube Algorithm Expert.
+        I have a YouTube video Link: ${url}
+        
+        TASK:
+        1. Use Google Search to find the EXACT Title and EXACT Channel Name of this video.
+        2. Analyze why this video is good or bad.
+        3. CRITICAL: Provide the response entirely in ${langName}.
+        
+        RETURN RAW JSON ONLY (Start with { and end with }). NO MARKDOWN.
+        {
+            "videoTitle": "Found Title",
+            "channelName": "Found Channel Name",
+            "score": 85, 
+            "summary": "Short explanation in ${langName}.",
+            "positives": ["Good point 1", "Good point 2"],
+            "negatives": ["Improvement 1", "Improvement 2"],
+            "suggestions": ["Action 1", "Action 2"]
+        }`,
+        config: {
+            tools: [{ googleSearch: {} }]
+        }
+        });
+        
+        return {
+            text: response.text,
+            groundingMetadata: response.candidates?.[0]?.groundingMetadata
+        };
+    } catch (error) {
+        console.warn("Gemini Audit Error:", error);
     }
+  }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: `You are a YouTube Algorithm Expert.
-      I have a YouTube video Link: ${url}
-      
-      TASK:
-      1. Use Google Search to find the EXACT Title and EXACT Channel Name of this video.
-      2. Analyze why this video is good or bad.
-      3. CRITICAL: Provide the response entirely in ${langName}.
-      
-      Format the output as a JSON object inside a JSON code block.
-      Do not include the search results in the output text, just use them to inform your JSON response.
-      
-      JSON Structure:
-      \`\`\`json
-      {
-        "videoTitle": "Found Title",
-        "channelName": "Found Channel Name",
-        "score": 85, 
-        "summary": "Short explanation in ${langName}.",
-        "positives": ["Good point 1", "Good point 2"],
-        "negatives": ["Improvement 1", "Improvement 2"],
-        "suggestions": ["Action 1", "Action 2"]
-      }
-      \`\`\``,
-      config: {
-        tools: [{ googleSearch: {} }]
-      }
-    });
-    
-    return {
-        text: response.text,
-        groundingMetadata: response.candidates?.[0]?.groundingMetadata
-    };
-  } catch (error) {
-    console.error("Gemini Audit Error:", error);
-    throw error;
+  // 2. Fallback: Use OpenAI (Text inference)
+  try {
+    const fallbackText = await callOpenAIChat([{
+        role: 'user', 
+        content: `I have a video URL: ${url}. Since you can't browse, infer the likely topic and give generic advice for this type of video in ${langName}. Return JSON format.`
+    }], 'gpt-4o', true);
+    return { text: fallbackText, groundingMetadata: null };
+  } catch (e) {
+     // 3. Fallback: Gemini Text Inference
+     return handleOpenAIFallback(e, async (aiFallback) => {
+        const fallbackText = await aiFallback.models.generateContent({
+             model: 'gemini-3-flash-preview',
+             contents: `I have a video URL: ${url}. Since you can't browse, infer the likely topic and give generic advice for this type of video in ${langName}. Return JSON format { "videoTitle": "Unknown", "score": 50, "summary": "...", "positives": [], "negatives": [], "suggestions": [] }.`
+        });
+        return { text: fallbackText.text, groundingMetadata: null };
+     });
   }
 };
 
+/**
+ * THUMBNAIL MAKER: Try OpenAI DALL-E 3 -> Fallback Gemini Image Gen
+ */
 export const generateThumbnailImage = async (prompt: string, aspectRatio: string = "16:9") => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
-      contents: {
-        parts: [
-          {
-            text: `Create a high CTR YouTube thumbnail. 
-            PROMPT: ${prompt}. 
-            Style: High saturation, emotional, 4k resolution, youtube catchy style.
-            Ratio: ${aspectRatio}.`
-          },
-        ],
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: aspectRatio,
-          imageSize: "1K" 
-        }
-      },
-    });
-
-    if (response.candidates?.[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData && part.inlineData.data) {
-          return `data:image/png;base64,${part.inlineData.data}`;
-        }
-      }
-    }
-    return null;
-  } catch (error) {
-    console.error("Gemini Thumbnail Gen Error:", error);
-    throw error;
-  }
-};
-
-export const generateViralStrategy = async (topic: string, language: Language) => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  try {
-    const langName = getLangName(language);
-    const isUrl = topic.toLowerCase().includes('youtube.com') || topic.toLowerCase().includes('youtu.be');
-    
-    let contents = '';
-    
-    // Strict structure for cleaner parsing
-    const jsonStructure = `
-    {
-      "originalChannel": "Channel Name (if URL provided) or N/A",
-      "strategyTitle": "Viral Strategy Title",
-      "trendContext": "Why is this relevant now?",
-      "analysis": {
-        "strengths": ["Strength 1", "Strength 2"],
-        "weaknesses": ["Weakness 1", "Weakness 2"]
-      },
-      "targetAudience": "Target Audience Description",
-      "metadata": {
-        "titleOptions": ["Title 1", "Title 2", "Title 3"],
-        "description": "Video Description",
-        "tags": ["tag1", "tag2", "tag3"]
-      },
-      "thumbnailIdea": {
-        "visualDescription": "Detailed visual description for AI generator",
-        "textOverlay": "Text on thumbnail"
-      },
-      "scriptOutline": {
-        "hook": "0-10s Hook",
-        "contentBeats": ["Point 1", "Point 2", "Point 3"],
-        "cta": "Call to Action"
-      },
-      "promotionPlan": ["Tactic 1", "Tactic 2"]
-    }`;
-
-    let config: any = {};
-
-    if (isUrl) {
-      config.tools = [{ googleSearch: {} }];
-      
-      contents = `You are a World-Class YouTube Strategist.
-      
-      INPUT: YouTube URL: "${topic}".
-      
-      TASK:
-      1. Search this video's title, EXACT Channel Name, and performance using Google Search.
-      2. ANALYZE the video in ${langName}.
-      3. Generate a "Viral Strategy" for a NEW competing video in ${langName}.
-      
-      CRITICAL: Return a JSON object inside a JSON code block.
-      
-      Structure:
-      \`\`\`json
-      ${jsonStructure}
-      \`\`\``;
-    } else {
-      contents = `You are a YouTube Strategist. Topic: "${topic}".
-      
-      Generate a Viral Strategy in ${langName}.
-      
-      CRITICAL: Return a JSON object inside a JSON code block.
-      
-      Structure:
-      \`\`\`json
-      ${jsonStructure}
-      \`\`\``;
-    }
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: contents,
-      config: config
-    });
-    
-    return {
-        text: response.text,
-        groundingMetadata: response.candidates?.[0]?.groundingMetadata
-    };
-  } catch (error) {
-    console.error("Gemini Strategy Error:", error);
-    throw error;
-  }
-};
-
-export const getPublicChannelInfo = async (query: string, language: Language) => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const fullPrompt = `YouTube Thumbnail, High CTR, ${aspectRatio} aspect ratio style. ${prompt}`;
   
   try {
-      const response = await ai.models.generateContent({
-          model: 'gemini-3-pro-preview',
-          contents: `You are a YouTube Data Analyst.
-          
+    const b64Json = await callOpenAIImage(fullPrompt);
+    return `data:image/png;base64,${b64Json}`;
+  } catch (e) {
+    // Fallback to Gemini Image Generation
+    return handleOpenAIFallback(e, async (ai) => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [{ text: fullPrompt }]
+            },
+            config: {
+                imageConfig: {
+                    aspectRatio: aspectRatio as any
+                }
+            }
+        });
+
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) {
+                return `data:image/png;base64,${part.inlineData.data}`;
+            }
+        }
+        throw new Error("Gemini generation successful but no image data found.");
+    });
+  }
+};
+
+/**
+ * VIRAL STRATEGY: Try OpenAI -> Fallback Gemini
+ */
+export const generateViralStrategy = async (topic: string, language: Language) => {
+  const langName = getLangName(language);
+  const isUrl = topic.toLowerCase().includes('youtube.com') || topic.toLowerCase().includes('youtu.be');
+  
+  let trendContext = "";
+  const ai = getGeminiClient();
+
+  // Research Phase (Always try Gemini if possible, as OpenAI can't browse)
+  if (isUrl && ai) {
+      try {
+          const research = await ai.models.generateContent({
+              model: 'gemini-3-pro-preview',
+              contents: `Research this video: ${topic}. What is the title, channel, and why is it successful?`,
+              config: { tools: [{ googleSearch: {} }] }
+          });
+          trendContext = research.text || "";
+      } catch (e) {
+          console.warn("Gemini research failed");
+      }
+  }
+
+  const prompt = `You are a World-Class YouTube Strategist. 
+  Topic/Input: "${topic}".
+  ${trendContext ? `Context from Search: ${trendContext}` : ''}
+  
+  Generate a Viral Strategy in ${langName}.
+  
+  Return RAW JSON ONLY. Structure:
+  {
+    "originalChannel": "N/A",
+    "strategyTitle": "Viral Strategy Title",
+    "trendContext": "Why is this relevant?",
+    "analysis": {
+      "strengths": ["S1", "S2"],
+      "weaknesses": ["W1", "W2"]
+    },
+    "targetAudience": "Audience Description",
+    "metadata": {
+      "titleOptions": ["T1", "T2"],
+      "description": "Desc",
+      "tags": ["tag1", "tag2"]
+    },
+    "thumbnailIdea": {
+      "visualDescription": "Detailed visual description for AI generator",
+      "textOverlay": "Text on thumbnail"
+    },
+    "scriptOutline": {
+      "hook": "Hook",
+      "contentBeats": ["B1", "B2"],
+      "cta": "CTA"
+    },
+    "promotionPlan": ["P1", "P2"]
+  }`;
+
+  try {
+      // 1. Try OpenAI
+      const content = await callOpenAIChat([{ role: 'user', content: prompt }], 'gpt-4o', true);
+      return { text: content, groundingMetadata: null };
+  } catch (e) {
+      // 2. Fallback to Gemini using Helper
+      return handleOpenAIFallback(e, async (aiFallback) => {
+          const response = await aiFallback.models.generateContent({
+              model: 'gemini-3-pro-preview',
+              contents: prompt,
+              config: {
+                  responseMimeType: 'application/json'
+              }
+          });
+          return { text: response.text, groundingMetadata: null };
+      });
+  }
+};
+
+/**
+ * CHANNEL INFO: Primary Gemini (Search) -> Fallback OpenAI Template
+ */
+export const getPublicChannelInfo = async (query: string, language: Language) => {
+  const ai = getGeminiClient();
+  const prompt = `You are a YouTube Data Analyst.
           TASK: Use Google Search to find detailed information about the YouTube channel matching: "${query}".
           
           I need:
@@ -404,17 +502,35 @@ export const getPublicChannelInfo = async (query: string, language: Language) =>
                   }
               ]
           }
-          
-          Note: For thumbnails, try to construct the URL if you find the Video ID.
-          `,
-          config: {
-              tools: [{ googleSearch: {} }]
-          }
+          `;
+
+  // 1. Try Gemini
+  if (ai) {
+      try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-pro-preview',
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }]
+            }
+        });
+        return response.text;
+      } catch (error) {
+        console.warn("Gemini Channel Search Error:", error);
+      }
+  }
+
+  // 2. Fallback OpenAI
+  try {
+      return await callOpenAIChat([{role: 'user', content: `Generate a JSON template for YouTube channel info for query "${query}".`}]);
+  } catch(e) {
+      // 3. Fallback Gemini Basic
+      return handleOpenAIFallback(e, async (aiFallback) => {
+          const response = await aiFallback.models.generateContent({
+             model: 'gemini-3-flash-preview',
+             contents: `Generate a JSON template for YouTube channel info for query "${query}".`
+          });
+          return response.text;
       });
-      
-      return response.text;
-  } catch (error) {
-      console.error("Gemini Channel Search Error:", error);
-      throw error;
   }
 };

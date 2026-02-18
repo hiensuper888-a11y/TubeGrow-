@@ -69,7 +69,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) 
             <button
               key={item.id}
               onClick={() => onViewChange(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden ${
+              title={item.label}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 group relative ${
                 isActive 
                   ? 'bg-gradient-to-r from-yt-red to-red-900/80 text-white shadow-lg shadow-red-900/40 translate-x-1' 
                   : isViral 
@@ -77,11 +78,18 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) 
                     : 'text-gray-400 hover:bg-white/5 hover:text-white hover:pl-5'
               }`}
             >
-              <Icon size={20} className={`transition-colors duration-300 ${
+              <Icon size={20} className={`flex-shrink-0 transition-colors duration-300 ${
                   isActive ? 'text-white' : isViral ? 'text-yellow-400 animate-pulse' : 'text-gray-500 group-hover:text-white'
               }`} />
-              <span className={`font-medium tracking-wide ${isActive ? 'font-bold' : ''}`}>{item.label}</span>
+              <span className={`font-medium tracking-wide truncate ${isActive ? 'font-bold' : ''}`}>{item.label}</span>
+              
               {isActive && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-l-full"></div>}
+
+              {/* Tooltip */}
+              <div className="absolute left-1/2 -translate-x-1/2 -top-10 px-3 py-1.5 bg-neutral-900 text-white text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none shadow-xl border border-white/10 z-50 whitespace-nowrap hidden md:block backdrop-blur-md transform scale-95 group-hover:scale-100">
+                  {item.label}
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-neutral-900 rotate-45 border-b border-r border-white/10"></div>
+              </div>
             </button>
           );
         })}
@@ -90,12 +98,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) 
       {/* Footer / User Profile */}
       <div className="flex-none p-4 border-t border-white/5 space-y-4 bg-black/20 backdrop-blur-md">
         <div className="flex items-center gap-3 px-2 p-2 rounded-xl hover:bg-white/5 transition-colors cursor-default">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-inner ring-2 ring-white/10">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-inner ring-2 ring-white/10 flex-shrink-0">
                 {user?.name?.[0].toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">{user?.name || t.auth.guest}</p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <p className="text-sm font-bold text-white truncate" title={user?.name || t.auth.guest}>{user?.name || t.auth.guest}</p>
+                <p className="text-xs text-gray-500 truncate" title={user?.email}>{user?.email}</p>
             </div>
         </div>
 
