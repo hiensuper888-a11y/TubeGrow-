@@ -74,7 +74,7 @@ export const getRealChannelVideos = async (accessToken: string): Promise<YouTube
 
     const data = await response.json();
     
-    if (!data.items) return [];
+    if (!data.items || data.items.length === 0) return [];
 
     // The search endpoint doesn't return view counts. 
     // We need to fetch details for these video IDs to get statistics.
@@ -83,7 +83,7 @@ export const getRealChannelVideos = async (accessToken: string): Promise<YouTube
     if(!videoIds) return [];
 
     const statsResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}`,
+        `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}`,
         {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -93,16 +93,19 @@ export const getRealChannelVideos = async (accessToken: string): Promise<YouTube
     );
     
     const statsData = await statsResponse.json();
-    const statsMap = new Map();
+    
+    // Create a map for easy lookup
+    const videoDetailsMap = new Map();
     if(statsData.items) {
         statsData.items.forEach((item: any) => {
-            statsMap.set(item.id, item.statistics);
+            videoDetailsMap.set(item.id, item);
         });
     }
 
     // Map response to our App Type
     return data.items.map((item: any) => {
-      const stats = statsMap.get(item.id.videoId) || {};
+      const details = videoDetailsMap.get(item.id.videoId);
+      const stats = details?.statistics || {};
       
       const formatCount = (num: string) => {
         if(!num) return '0';

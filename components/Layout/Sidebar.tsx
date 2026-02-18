@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Wand2, FileText, TrendingUp, Image as ImageIcon, SearchCheck, ImagePlus, LogOut, Zap, Play, CircleUser, Settings, AlertTriangle, MessageSquare, AudioWaveform } from 'lucide-react';
+import { LayoutDashboard, Wand2, FileText, TrendingUp, Image as ImageIcon, SearchCheck, ImagePlus, LogOut, Zap, Play, CircleUser, Settings, AlertTriangle, MessageSquare, AudioWaveform, ScanFace } from 'lucide-react';
 import { AppView, Language } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,6 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen, on
     { id: AppView.CHAT_ASSISTANT, label: 'AI Assistant', icon: MessageSquare }, // New
     { id: AppView.AI_STUDIO, label: 'AI Studio (Veo/TTS)', icon: AudioWaveform }, // New
     { id: AppView.VIDEO_AUDIT, label: t.sidebar.videoAudit, icon: SearchCheck },
+    { id: AppView.VIDEO_ANALYZER, label: t.sidebar.videoAnalyzer, icon: ScanFace }, // New
     { id: AppView.TREND_HUNTER, label: t.sidebar.trendHunter, icon: TrendingUp },
     { id: AppView.OPTIMIZER, label: t.sidebar.optimizer, icon: Wand2 },
     { id: AppView.SCRIPT_WRITER, label: t.sidebar.scriptWriter, icon: FileText },

@@ -10,7 +10,8 @@ export enum AppView {
   VIRAL_STRATEGY = 'VIRAL_STRATEGY',
   CHANNEL_MANAGER = 'CHANNEL_MANAGER',
   CHAT_ASSISTANT = 'CHAT_ASSISTANT',
-  AI_STUDIO = 'AI_STUDIO'
+  AI_STUDIO = 'AI_STUDIO',
+  VIDEO_ANALYZER = 'VIDEO_ANALYZER'
 }
 
 export type Language = 'en' | 'vi' | 'zh' | 'ja';

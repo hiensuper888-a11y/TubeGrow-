@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { generateVeoVideo, generateSpeech, transcribeAudio, decodeAudioData } from '../../services/geminiService';
+import { generateVeoVideo, generateSpeech, transcribeAudio, decodePCMData } from '../../services/geminiService';
 import { Video, Mic, Volume2, Loader2, Play, Download, AlertTriangle, Wand2, FileAudio } from 'lucide-react';
 
 const AIStudio: React.FC = () => {
@@ -40,19 +40,20 @@ const AIStudio: React.FC = () => {
       setAudioUrl(null);
       try {
           const base64Audio = await generateSpeech(ttsText, 'Kore');
-          // Decode raw PCM? The example says output is raw PCM, but we might need to wrap in wav container or play via AudioContext.
-          // For simplicity in this demo, let's try assuming standard decoding flow or simple playback.
-          // Since the prompt example uses AudioContext to decode, we can't easily make a blob URL without a WAV header.
-          // However, we can play it immediately.
-          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const buffer = await decodeAudioData(base64Audio, audioCtx);
           
-          // To download/play as element, we need a WAV encoder. For now, let's just play it.
+          // Decode raw PCM from Gemini TTS (16-bit, 24kHz)
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const buffer = decodePCMData(base64Audio, audioCtx);
+          
+          // Play audio
           const source = audioCtx.createBufferSource();
           source.buffer = buffer;
           source.connect(audioCtx.destination);
           source.start();
-          alert("Audio playing...");
+          
+          // Note: Since raw PCM has no header, we can't easily create a download link 
+          // without an encoder library (like WAV encoder). For now, we just play it.
+          // In a real app, you'd use a WAV encoder here to setAudioUrl.
 
       } catch (e: any) {
           alert("TTS Error: " + e.message);

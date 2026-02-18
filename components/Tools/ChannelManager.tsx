@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getRealChannelStats, getRealChannelVideos } from '../../services/youtubeService';
 import { getPublicChannelInfo, cleanAndParseJson } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Youtube, Users, SquarePlay, ChartBar, Loader2, ArrowRight, Zap, SearchCheck, LogOut, AlertTriangle, Settings, Copy, Info, CheckCircle2, ShieldAlert, Search } from 'lucide-react';
+import { Youtube, Users, SquarePlay, ChartBar, Loader2, Zap, SearchCheck, LogOut, AlertTriangle, Settings, Copy, Info, Search } from 'lucide-react';
 import { AppView, ChannelStats, YouTubeVideo } from '../../types';
 
 interface ChannelManagerProps {

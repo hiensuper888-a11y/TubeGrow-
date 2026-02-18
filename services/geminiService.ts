@@ -35,15 +35,30 @@ const getGeminiClient = () => {
 };
 
 // --- HELPER: AUDIO DECODING ---
-// Helper to decode base64 audio for playback
-export const decodeAudioData = async (base64String: string, audioContext: AudioContext) => {
+// Helper to decode base64 raw PCM audio (16-bit, 24kHz) from Gemini TTS
+export const decodePCMData = (base64String: string, audioContext: AudioContext) => {
   const binaryString = atob(base64String);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
-  return await audioContext.decodeAudioData(bytes.buffer);
+
+  // Convert Uint8Array bytes (representing Int16) to Float32
+  const dataInt16 = new Int16Array(bytes.buffer);
+  const numChannels = 1;
+  const frameCount = dataInt16.length / numChannels;
+  
+  // Create buffer (standard sample rate for Gemini TTS is 24000)
+  const buffer = audioContext.createBuffer(numChannels, frameCount, 24000);
+  const channelData = buffer.getChannelData(0);
+  
+  for (let i = 0; i < frameCount; i++) {
+    // Normalize Int16 to Float32 [-1.0, 1.0]
+    channelData[i] = dataInt16[i] / 32768.0;
+  }
+  
+  return buffer;
 };
 
 
@@ -354,6 +369,39 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
   }
 
   throw new Error("Analysis failed.");
+};
+
+/**
+ * VIDEO ANALYZER (UPLOAD)
+ */
+export const analyzeUploadedVideo = async (base64Data: string, mimeType: string, prompt: string, language: Language) => {
+    if (!checkApiKey()) {
+        await mockDelay(2000);
+        return `## [DEMO] Analysis\n(Demo Mode) This video appears to be interesting...`;
+    }
+
+    const ai = getGeminiClient();
+    const langName = getLangName(language);
+    
+    if (ai) {
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-pro-preview',
+                contents: {
+                    parts: [
+                        { inlineData: { mimeType, data: base64Data } },
+                        { text: `${prompt}. Language: ${langName}.` }
+                    ]
+                }
+            });
+            return response.text;
+        } catch (e: any) {
+            console.error("Video Analysis Error:", e);
+            throw new Error(e.message || "Failed to analyze video.");
+        }
+    }
+    
+    throw new Error("Gemini API Key required for video analysis.");
 };
 
 /**

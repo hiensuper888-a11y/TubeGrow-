@@ -15,6 +15,7 @@ const TrendHunter = React.lazy(() => import('./components/Tools/TrendHunter'));
 const ThumbnailRater = React.lazy(() => import('./components/Tools/ThumbnailRater'));
 const ThumbnailMaker = React.lazy(() => import('./components/Tools/ThumbnailMaker'));
 const VideoAudit = React.lazy(() => import('./components/Tools/VideoAudit'));
+const VideoAnalyzer = React.lazy(() => import('./components/Tools/VideoAnalyzer'));
 const ViralStrategy = React.lazy(() => import('./components/Tools/ViralStrategy'));
 const ChannelManager = React.lazy(() => import('./components/Tools/ChannelManager'));
 const ChatAssistant = React.lazy(() => import('./components/Tools/ChatAssistant'));
@@ -69,6 +70,8 @@ const MainApp: React.FC = () => {
         return <ThumbnailMaker />;
       case AppView.VIDEO_AUDIT:
         return <VideoAudit initialUrl={activeVideoData.url} />;
+      case AppView.VIDEO_ANALYZER:
+        return <VideoAnalyzer />;
       case AppView.VIRAL_STRATEGY:
         return <ViralStrategy initialTopic={activeVideoData.topic || activeVideoData.url} onNavigate={handleNavigate} />;
       case AppView.CHAT_ASSISTANT:
