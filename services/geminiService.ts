@@ -13,7 +13,6 @@ export const setApiKey = (provider: 'gemini' | 'openai' | 'grok', key: string) =
 
 // Helper to check if ANY AI service is available
 export const checkApiKey = (): boolean => {
-  // STRICTLY User provided keys only. No process.env fallback.
   return !!getApiKey('gemini') || !!getApiKey('openai') || !!getApiKey('grok');
 };
 
@@ -31,10 +30,8 @@ const getLangName = (lang: Language) => {
 const getFriendlyError = (error: any, provider: string = 'AI') => {
   let msg = error.message || String(error);
 
-  // Attempt to parse JSON-like error messages often returned by SDKs
   if (msg.includes('{') && msg.includes('}')) {
      try {
-         // Extract JSON part if mixed with text
          const jsonMatch = msg.match(/({[\s\S]*})/);
          if (jsonMatch) {
              const errorObj = JSON.parse(jsonMatch[0]);
@@ -43,7 +40,6 @@ const getFriendlyError = (error: any, provider: string = 'AI') => {
      } catch (e) {}
   }
 
-  // Common Gemini/OpenAI Error Codes
   if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
       return `${provider} Quota Exceeded. The free tier limit may have been reached. Please use a paid API Key or wait.`;
   }
@@ -232,14 +228,15 @@ const smartChatGen = async (
         errors.push(e.message);
     }
 
-    // 3. Try Gemini
+    // 3. Try Gemini (ĐÃ FIX: Dùng systemInstruction chuẩn)
     const ai = getGeminiClient();
     if (ai) {
         try {
             const response = await ai.models.generateContent({
                 model: fallbackModelGemini,
-                contents: `${systemPrompt}\n\nUser Task: ${userPrompt}`,
+                contents: userPrompt,
                 config: {
+                    systemInstruction: systemPrompt,
                     responseMimeType: jsonMode ? 'application/json' : 'text/plain'
                 }
             });
@@ -293,7 +290,7 @@ export const generateVideoMetadata = async (topic: string, tone: string, languag
   const systemPrompt = `YouTube SEO Expert. Tone: ${tone}. Language: ${langName}.`;
   const userPrompt = `Generate metadata for: "${topic}". JSON: { "titles": [], "description": "", "tags": "" }`;
 
-  return await smartChatGen(systemPrompt, userPrompt, 'gemini-2.5-flash-lite-preview', true);
+  return await smartChatGen(systemPrompt, userPrompt, 'gemini-2.5-flash-preview', true);
 };
 
 /**
@@ -308,7 +305,6 @@ export const generateScript = async (title: string, points: string, language: La
   const ai = getGeminiClient();
   const langName = getLangName(language);
   
-  // If Gemini is available, use Thinking Mode
   if (ai) {
       try {
         const response = await ai.models.generateContent({
@@ -321,7 +317,6 @@ export const generateScript = async (title: string, points: string, language: La
         return response.text;
       } catch (e) {
         console.warn("Gemini Thinking Mode failed, falling back...", e);
-        // Fallback to normal if thinking mode fails (e.g., quota)
         if(String(e).includes('429')) throw new Error(getFriendlyError(e, 'Gemini'));
       }
   }
@@ -384,14 +379,13 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
 
   if (ai) {
     try {
+        // ĐÃ FIX: Truyền mảng trực tiếp, không bọc trong Object { parts: [] }
         const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: {
-            parts: [
+        contents: [
             { inlineData: { mimeType: mimeType, data: base64Image } },
             { text: promptText }
-            ]
-        }
+        ]
         });
         return response.text;
     } catch (error: any) {
@@ -430,14 +424,13 @@ export const analyzeUploadedVideo = async (base64Data: string, mimeType: string,
     
     if (ai) {
         try {
+            // ĐÃ FIX: Truyền mảng trực tiếp
             const response = await ai.models.generateContent({
                 model: 'gemini-3-pro-preview',
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType, data: base64Data } },
-                        { text: `${prompt}. Language: ${langName}.` }
-                    ]
-                }
+                contents: [
+                    { inlineData: { mimeType, data: base64Data } },
+                    { text: `${prompt}. Language: ${langName}.` }
+                ]
             });
             return response.text;
         } catch (e: any) {
@@ -491,24 +484,24 @@ export const generateThumbnailImage = async (prompt: string, aspectRatio: string
 
   const ai = getGeminiClient();
   
-  let model = 'gemini-2.5-flash-image';
-  if (quality === 'hd') {
-      model = 'gemini-3-pro-image-preview';
-  }
+  // Model ảnh của Google thường dùng tiền tố imagen
+  let model = 'imagen-3.0-generate-002';
 
   if (ai) {
     try {
-        const response = await ai.models.generateContent({
+        // ĐÃ FIX: Sử dụng hàm generateImages thay vì generateContent
+        const response = await ai.models.generateImages({
             model: model,
-            contents: { parts: [{ text: `YouTube Thumbnail: ${prompt}` }] },
+            prompt: `YouTube Thumbnail: ${prompt}`,
             config: { 
-                imageConfig: { 
-                    aspectRatio: aspectRatio as any,
-                } 
+                aspectRatio: aspectRatio as any,
+                outputMimeType: "image/png"
             }
         });
-        for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+        
+        const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+        if (imageBytes) {
+             return `data:image/png;base64,${imageBytes}`;
         }
     } catch (e: any) {
         console.warn("Gemini Image Gen failed:", e);
@@ -580,7 +573,7 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:
 
         while (!operation.done) {
             await new Promise(resolve => setTimeout(resolve, 5000));
-            operation = await ai.operations.getVideosOperation({ operation: operation });
+            operation = await ai.operations.getVideosOperation({ operation: operation.name || operation }); // Fix fallback name
         }
 
         const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
@@ -609,7 +602,7 @@ export const generateSpeech = async (text: string, voiceName: 'Kore' | 'Puck' | 
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-tts",
-            contents: [{ parts: [{ text: text }] }],
+            contents: [{ text: text }], // ĐÃ FIX: Chỉ cần mảng chứa text
             config: {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: {
@@ -636,14 +629,13 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string) => 
     if (!ai) throw new Error("Gemini API Key Required");
 
     try {
+        // ĐÃ FIX: Truyền mảng trực tiếp cho Audio
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: mimeType, data: base64Audio } },
-                    { text: "Transcribe this audio accurately." }
-                ]
-            }
+            contents: [
+                { inlineData: { mimeType: mimeType, data: base64Audio } },
+                { text: "Transcribe this audio accurately." }
+            ]
         });
         return response.text;
     } catch (e: any) {
