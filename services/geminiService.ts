@@ -102,7 +102,7 @@ const mockDelay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms)
 const callGemini = async (
     systemPrompt: string, 
     userPrompt: string, 
-    model: string = 'gemini-3-flash-preview',
+    model: string = 'gemini-2.5-flash',
     jsonMode: boolean = false
 ) => {
     const ai = getGeminiClient();
@@ -162,7 +162,7 @@ export const generateVideoMetadata = async (topic: string, tone: string, languag
   const systemPrompt = `YouTube SEO Expert. Tone: ${tone}. Language: ${langName}.`;
   const userPrompt = `Generate metadata for: "${topic}". JSON: { "titles": [], "description": "", "tags": "" }`;
 
-  return await callGemini(systemPrompt, userPrompt, 'gemini-3-flash-preview', true);
+  return await callGemini(systemPrompt, userPrompt, 'gemini-2.5-flash', true);
 };
 
 /**
@@ -181,10 +181,10 @@ export const generateScript = async (title: string, points: string, language: La
   if (ai) {
       try {
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview",
+            model: "gemini-2.5-flash",
             contents: `Write a deep, engaging YouTube script for "${title}". Key points: ${points}. Language: ${langName}.`,
             config: {
-                thinkingConfig: { thinkingBudget: 16000 } // Generous budget
+                thinkingConfig: { thinkingBudget: 16000 } 
             }
         });
         return response.text;
@@ -195,7 +195,7 @@ export const generateScript = async (title: string, points: string, language: La
 
   const systemPrompt = `Professional Scriptwriter. Language: ${langName}.`;
   const userPrompt = `Title: "${title}". Points: ${points}.`;
-  return await callGemini(systemPrompt, userPrompt, 'gemini-3-pro-preview', false);
+  return await callGemini(systemPrompt, userPrompt, 'gemini-2.5-flash', false);
 };
 
 /**
@@ -214,7 +214,7 @@ export const findTrends = async (niche: string, language: Language) => {
   if (ai) {
       try {
         const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-2.5-flash',
         contents: `Find latest trending topics in "${niche}". Language: ${langName}. Format: Markdown list with source links.`,
         config: {
             tools: [{ googleSearch: {} }] // Enable Google Search
@@ -249,7 +249,7 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
   if (ai) {
     try {
         const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-2.5-flash',
         contents: {
             parts: [
             { inlineData: { mimeType: mimeType, data: base64Image } },
@@ -281,7 +281,7 @@ export const analyzeUploadedVideo = async (base64Data: string, mimeType: string,
     if (ai) {
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-2.5-flash',
                 contents: {
                     parts: [
                         { inlineData: { mimeType, data: base64Data } },
@@ -315,7 +315,7 @@ export const auditVideo = async (url: string, language: Language) => {
   if (ai) {
     try {
         const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-2.5-flash',
         contents: `Analyze YouTube video: ${url}. Use Search to find its metadata and recent performance. Lang: ${langName}. Output JSON format.`,
         config: {
             tools: [{ googleSearch: {} }] // Enable Google Search
@@ -338,11 +338,8 @@ export const generateThumbnailImage = async (prompt: string, aspectRatio: string
 
   const ai = getGeminiClient();
   
-  // Use Pro Image preview for HD results
-  let model = 'gemini-2.5-flash-image';
-  if (quality === 'hd') {
-      model = 'gemini-3-pro-image-preview';
-  }
+  // Always use 2.5 Flash Image for efficiency/free tier preference
+  const model = 'gemini-2.5-flash-image';
 
   if (ai) {
     try {
@@ -424,7 +421,7 @@ export const generateViralStrategy = async (topic: string, language: Language) =
 
    try {
      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-2.5-flash',
         contents: `Create a Viral Strategy for: "${topic}".`,
         config: {
             systemInstruction: systemPrompt,
@@ -435,7 +432,7 @@ export const generateViralStrategy = async (topic: string, language: Language) =
      return { text: response.text, groundingMetadata: null };
    } catch (e: any) {
      console.warn("Strategy Gen - Thinking failed, fallback to standard", e);
-     return { text: await callGemini(systemPrompt, `Strategy for "${topic}"`, 'gemini-3-flash-preview', true), groundingMetadata: null };
+     return { text: await callGemini(systemPrompt, `Strategy for "${topic}"`, 'gemini-2.5-flash', true), groundingMetadata: null };
    }
 };
 
@@ -445,14 +442,14 @@ export const getPublicChannelInfo = async (query: string, language: Language) =>
   if (ai) {
       try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-2.5-flash',
             contents: `Find channel info: "${query}". JSON format.`,
             config: { tools: [{ googleSearch: {} }] } // Search Enabled
         });
         return response.text;
       } catch (error) {}
   }
-  return await callGemini("Analyst", `Channel info "${query}". JSON.`, 'gemini-3-flash-preview', true);
+  return await callGemini("Analyst", `Channel info "${query}". JSON.`, 'gemini-2.5-flash', true);
 };
 
 // --- NEW FEATURES ---
@@ -535,7 +532,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string) => 
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.5-flash",
             contents: {
                 parts: [
                     { inlineData: { mimeType: mimeType, data: base64Audio } },
@@ -557,7 +554,7 @@ export const createChatSession = (systemInstruction: string) => {
     if (!ai) throw new Error("API Key Required");
     
     return ai.chats.create({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-2.5-flash',
         config: { systemInstruction }
     });
 };

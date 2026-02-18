@@ -61,13 +61,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                     className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3"
                 />
                 <p className="text-[10px] text-gray-400 mb-3">
-                    Using unlimited token model (Gemini 3 Pro) with Google Search enabled.
+                    Optimized for Free Usage: Using Gemini 2.5 Flash model.
                 </p>
 
                 <div className="grid grid-cols-2 gap-2">
                      <div className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-green-500/20">
                         <CheckCircle2 size={12} className="text-green-500" />
-                        <span className="text-xs text-green-100 font-medium">Gemini 3 Pro</span>
+                        <span className="text-xs text-green-100 font-medium">Gemini 2.5 Flash</span>
                     </div>
                      <div className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-blue-500/20">
                         <Globe size={12} className="text-blue-500" />
