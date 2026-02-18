@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { generateViralStrategy, generateThumbnailImage, cleanAndParseJson } from '../../services/geminiService';
+import { generateViralStrategy, generateThumbnailImage, cleanAndParseJson, checkApiKey } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Zap, Loader2, Target, Type, Image as ImageIcon, FileText, Megaphone, CheckCircle2, Copy, Download, SearchCheck, ThumbsUp, ThumbsDown, Tv } from 'lucide-react';
+import { Zap, Loader2, Target, Type, Image as ImageIcon, FileText, Megaphone, CheckCircle2, Copy, Download, SearchCheck, ThumbsUp, ThumbsDown, Tv, AlertCircle } from 'lucide-react';
+import { AppView } from '../../types';
 
 interface ViralStrategyProps {
   initialTopic?: string;
+  onNavigate?: (view: AppView, data?: any) => void;
 }
 
-const ViralStrategy: React.FC<ViralStrategyProps> = ({ initialTopic }) => {
+const ViralStrategy: React.FC<ViralStrategyProps> = ({ initialTopic, onNavigate }) => {
   const { t, language } = useLanguage();
   const [topic, setTopic] = useState(initialTopic || '');
   const [loading, setLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialTopic) {
@@ -90,39 +93,54 @@ ${getList(result.promotionPlan)}
 
   const handleGenerate = async () => {
     if (!topic) return;
+    
+    // Reset state
     setLoading(true);
     setResult(null);
     setGeneratedThumbnail(null);
+    setError(null);
     
+    if (!checkApiKey()) {
+        setError("API Key is missing or invalid. Please check metadata.json or environment variables.");
+        setLoading(false);
+        return;
+    }
+
     try {
       // 1. Generate Text Strategy
       const jsonStr = await generateViralStrategy(topic, language);
-      if (jsonStr) {
-        const parsed = cleanAndParseJson(jsonStr);
-        if (parsed) {
-            setResult(parsed);
-
-            // 2. Generate Image immediately if we have a description
-            if (parsed.thumbnailIdea?.visualDescription) {
-                setImageLoading(true);
-                generateThumbnailImage(parsed.thumbnailIdea.visualDescription)
-                  .then(url => {
-                      if(url) setGeneratedThumbnail(url);
-                  })
-                  .catch(err => console.error("Image gen failed", err))
-                  .finally(() => setImageLoading(false));
-            }
-        } else {
-             alert("Failed to parse the strategy. Please try again.");
-        }
+      
+      if (!jsonStr) {
+          throw new Error("AI returned empty response.");
       }
-    } catch (e) {
-      console.error(e);
-      alert(t.viral.error);
+
+      const parsed = cleanAndParseJson(jsonStr);
+      
+      if (parsed) {
+          setResult(parsed);
+
+          // 2. Generate Image immediately if we have a description
+          if (parsed.thumbnailIdea?.visualDescription) {
+              setImageLoading(true);
+              generateThumbnailImage(parsed.thumbnailIdea.visualDescription)
+                .then(url => {
+                    if(url) setGeneratedThumbnail(url);
+                })
+                .catch(err => console.error("Image gen failed", err))
+                .finally(() => setImageLoading(false));
+          }
+      } else {
+           throw new Error("Could not understand AI response. Please try again with a different topic.");
+      }
+    } catch (e: any) {
+      console.error("Strategy Gen Error", e);
+      setError(e.message || t.viral.error);
     } finally {
       setLoading(false);
     }
   };
+
+  const isUrl = topic.toLowerCase().includes('youtube.com') || topic.toLowerCase().includes('youtu.be');
 
   return (
     <div className="max-w-6xl mx-auto pb-12 relative min-h-[80vh]">
@@ -140,6 +158,16 @@ ${getList(result.promotionPlan)}
         <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
           <Zap className="text-yellow-400" fill="currentColor" /> {t.viral.title}
         </h2>
+
+        {error && (
+            <div className="bg-red-900/50 border border-red-500 text-red-100 p-4 rounded-xl mb-6 flex items-center gap-3 animate-fade-in">
+                <AlertCircle className="flex-shrink-0" />
+                <div>
+                    <p className="font-bold">Generation Failed</p>
+                    <p className="text-sm opacity-90">{error}</p>
+                </div>
+            </div>
+        )}
 
         <div className="bg-gradient-to-r from-neutral-900 to-neutral-800 p-8 rounded-2xl border border-yellow-500/20 mb-10 shadow-lg shadow-yellow-900/10">
           <label className="block text-lg font-medium text-white mb-3">{t.viral.topicLabel}</label>
@@ -167,6 +195,19 @@ ${getList(result.promotionPlan)}
             {/* Header */}
             <div className="text-center mb-8 relative">
               
+              {/* Audit Button (Desktop) */}
+              {onNavigate && (
+                <div className="absolute left-0 top-0 hidden md:block">
+                  <button
+                    onClick={() => onNavigate(AppView.VIDEO_AUDIT, { url: isUrl ? topic : '' })}
+                    className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg group"
+                  >
+                    <SearchCheck size={18} className="group-hover:text-blue-400 transition-colors" />
+                    <span className="text-sm font-medium">{t.channel.actions.audit}</span>
+                  </button>
+                </div>
+              )}
+
               {/* Download Strategy Button (Desktop) */}
               <div className="absolute right-0 top-0 hidden md:block">
                 <button
@@ -192,14 +233,26 @@ ${getList(result.promotionPlan)}
 
               <p className="text-gray-400 text-lg">{result.targetAudience}</p>
 
-              {/* Download Strategy Button (Mobile) */}
-              <button
-                  onClick={handleDownloadStrategy}
-                  className="md:hidden mt-4 flex items-center gap-2 mx-auto bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg"
-              >
-                  <Download size={18} />
-                  <span className="text-sm font-medium">{t.viral.btnDownloadStrategy}</span>
-              </button>
+              {/* Mobile Actions */}
+              <div className="md:hidden mt-4 flex justify-center gap-3 flex-wrap">
+                  <button
+                      onClick={handleDownloadStrategy}
+                      className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg"
+                  >
+                      <Download size={18} />
+                      <span className="text-sm font-medium">{t.viral.btnDownloadStrategy}</span>
+                  </button>
+                  
+                   {onNavigate && (
+                      <button
+                        onClick={() => onNavigate(AppView.VIDEO_AUDIT, { url: isUrl ? topic : '' })}
+                        className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg"
+                      >
+                        <SearchCheck size={18} />
+                        <span className="text-sm font-medium">{t.channel.actions.audit}</span>
+                      </button>
+                  )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

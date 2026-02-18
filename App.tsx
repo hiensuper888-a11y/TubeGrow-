@@ -52,7 +52,7 @@ const MainApp: React.FC = () => {
       case AppView.VIDEO_AUDIT:
         return <VideoAudit initialUrl={activeVideoData.url} />;
       case AppView.VIRAL_STRATEGY:
-        return <ViralStrategy initialTopic={activeVideoData.topic || activeVideoData.url} />;
+        return <ViralStrategy initialTopic={activeVideoData.topic || activeVideoData.url} onNavigate={handleNavigate} />;
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }

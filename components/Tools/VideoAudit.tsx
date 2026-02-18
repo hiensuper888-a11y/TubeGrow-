@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { auditVideo, cleanAndParseJson } from '../../services/geminiService';
+import { auditVideo, cleanAndParseJson, checkApiKey } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Search, Loader2, CheckCircle2, XCircle, TrendingUp, Youtube, ExternalLink } from 'lucide-react';
+import { Search, Loader2, CheckCircle2, XCircle, TrendingUp, Youtube, ExternalLink, AlertCircle } from 'lucide-react';
 
 interface VideoAuditProps {
   initialUrl?: string;
@@ -12,6 +12,7 @@ const VideoAudit: React.FC<VideoAuditProps> = ({ initialUrl }) => {
   const [url, setUrl] = useState(initialUrl || '');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialUrl) {
@@ -23,6 +24,14 @@ const VideoAudit: React.FC<VideoAuditProps> = ({ initialUrl }) => {
     if (!url) return;
     setLoading(true);
     setResult(null);
+    setError(null);
+    
+    if (!checkApiKey()) {
+        setError("API Key missing. Check configuration.");
+        setLoading(false);
+        return;
+    }
+
     try {
       const jsonStr = await auditVideo(url, language);
       if (jsonStr) {
@@ -30,11 +39,11 @@ const VideoAudit: React.FC<VideoAuditProps> = ({ initialUrl }) => {
         if (parsed) {
           setResult(parsed);
         } else {
-          alert(t.audit.error);
+          setError("Failed to parse analysis data. Try again.");
         }
       }
-    } catch (e) {
-      alert(t.audit.error);
+    } catch (e: any) {
+      setError(e.message || t.audit.error);
     } finally {
       setLoading(false);
     }
@@ -51,6 +60,16 @@ const VideoAudit: React.FC<VideoAuditProps> = ({ initialUrl }) => {
       <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
         <Youtube className="text-yt-red" /> {t.audit.title}
       </h2>
+
+      {error && (
+            <div className="bg-red-900/50 border border-red-500 text-red-100 p-4 rounded-xl mb-6 flex items-center gap-3 animate-fade-in">
+                <AlertCircle className="flex-shrink-0" />
+                <div>
+                    <p className="font-bold">Error</p>
+                    <p className="text-sm opacity-90">{error}</p>
+                </div>
+            </div>
+      )}
 
       <div className="bg-yt-gray p-6 rounded-xl border border-neutral-800 mb-8">
         <label className="block text-sm font-medium text-gray-400 mb-2">{t.audit.urlLabel}</label>

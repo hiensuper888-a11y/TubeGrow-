@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { generateVideoMetadata, cleanAndParseJson } from '../../services/geminiService';
-import { Copy, Loader2, Sparkles } from 'lucide-react';
+import { generateVideoMetadata, cleanAndParseJson, checkApiKey } from '../../services/geminiService';
+import { Copy, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const Optimizer: React.FC = () => {
@@ -9,10 +9,20 @@ const Optimizer: React.FC = () => {
   const [tone, setTone] = useState('Exciting');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!topic) return;
     setLoading(true);
+    setError(null);
+    setResult(null);
+
+    if (!checkApiKey()) {
+        setError("API Key missing.");
+        setLoading(false);
+        return;
+    }
+
     try {
       const jsonStr = await generateVideoMetadata(topic, tone, language);
       if (jsonStr) {
@@ -20,12 +30,11 @@ const Optimizer: React.FC = () => {
         if (parsed) {
           setResult(parsed);
         } else {
-           // Fallback or alert if parsing really fails despite cleaning
-           alert(t.optimizer.error);
+           setError("AI returned invalid format. Try again.");
         }
       }
-    } catch (e) {
-      alert(t.optimizer.error);
+    } catch (e: any) {
+      setError(e.message || t.optimizer.error);
     } finally {
       setLoading(false);
     }
@@ -41,6 +50,16 @@ const Optimizer: React.FC = () => {
         <Sparkles className="text-yt-red" /> {t.optimizer.title}
       </h2>
       
+      {error && (
+            <div className="bg-red-900/50 border border-red-500 text-red-100 p-4 rounded-xl mb-6 flex items-center gap-3 animate-fade-in">
+                <AlertCircle className="flex-shrink-0" />
+                <div>
+                    <p className="font-bold">Error</p>
+                    <p className="text-sm opacity-90">{error}</p>
+                </div>
+            </div>
+      )}
+
       <div className="bg-yt-gray p-6 rounded-xl border border-neutral-800 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3">

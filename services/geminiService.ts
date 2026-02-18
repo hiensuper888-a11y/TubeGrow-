@@ -25,13 +25,11 @@ const getApiKey = () => {
 const apiKey = getApiKey();
 
 // Initialize AI cautiously. 
-// If key is empty, requests will fail but app won't crash on load.
 let ai: GoogleGenAI;
 try {
     ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-to-prevent-crash' });
 } catch (error) {
     console.error("Failed to initialize GoogleGenAI", error);
-    // Fallback object to prevent immediate crash, though calls will fail
     ai = { models: {}, chats: {} } as any; 
 }
 
@@ -49,30 +47,47 @@ const getLangName = (lang: Language) => {
   }
 };
 
-// Robust JSON Cleaner and Parser
+/**
+ * ULTRA-ROBUST JSON PARSER
+ * Extracts JSON objects from messy AI responses (Markdown, text, etc.)
+ */
 export const cleanAndParseJson = (text: string) => {
+  if (!text) return null;
+  
   try {
-    if (!text) return null;
-    let clean = text.trim();
-    // Remove markdown code blocks
-    clean = clean.replace(/```json/g, '').replace(/```/g, '');
-    
-    // Find the JSON object
-    const firstBrace = clean.indexOf('{');
-    const lastBrace = clean.lastIndexOf('}');
-    
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      clean = clean.substring(firstBrace, lastBrace + 1);
+    // 1. Try direct parse first (best case)
+    return JSON.parse(text);
+  } catch (e) {
+    // 2. Try extracting from Markdown code blocks ```json ... ```
+    const markdownMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (markdownMatch && markdownMatch[1]) {
+      try {
+        return JSON.parse(markdownMatch[1]);
+      } catch (e2) {
+        // Continue to step 3
+      }
+    }
+
+    // 3. Brute force: Find the first '{' and the last '}'
+    try {
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const jsonCandidate = text.substring(firstBrace, lastBrace + 1);
+        return JSON.parse(jsonCandidate);
+      }
+    } catch (e3) {
+      console.error("JSON Parse Logic Failed completely:", e3);
     }
     
-    return JSON.parse(clean);
-  } catch (error) {
-    console.error("JSON Parse Error:", error);
     return null;
   }
 };
 
 export const generateVideoMetadata = async (topic: string, tone: string, language: Language) => {
+  if (!checkApiKey()) throw new Error("Missing API Key");
+  
   try {
     const langName = getLangName(language);
     const response = await ai.models.generateContent({
@@ -86,7 +101,7 @@ export const generateVideoMetadata = async (topic: string, tone: string, languag
       2. A compelling video description in ${langName} (first 2 lines are hooks).
       3. 15 comma-separated tags in ${langName}.
       
-      Output JSON only.`,
+      Output JSON only. Do not add any markdown formatting.`,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -110,6 +125,8 @@ export const generateVideoMetadata = async (topic: string, tone: string, languag
 };
 
 export const generateScript = async (title: string, points: string, language: Language) => {
+  if (!checkApiKey()) throw new Error("Missing API Key");
+
   try {
     const langName = getLangName(language);
     const response = await ai.models.generateContent({
@@ -136,6 +153,8 @@ export const generateScript = async (title: string, points: string, language: La
 };
 
 export const findTrends = async (niche: string, language: Language) => {
+  if (!checkApiKey()) throw new Error("Missing API Key");
+
   try {
     const langName = getLangName(language);
     const response = await ai.models.generateContent({
@@ -163,6 +182,8 @@ export const findTrends = async (niche: string, language: Language) => {
 };
 
 export const analyzeThumbnail = async (base64Image: string, mimeType: string, context: string, language: Language) => {
+  if (!checkApiKey()) throw new Error("Missing API Key");
+
   try {
     const langName = getLangName(language);
     const response = await ai.models.generateContent({
@@ -199,13 +220,18 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
 };
 
 export const auditVideo = async (url: string, language: Language) => {
+  if (!checkApiKey()) throw new Error("Missing API Key");
+
   try {
     const langName = getLangName(language);
-    // NOTE: When using Google Search tools, strictly enforcing JSON Schema can sometimes lead to conflicts.
-    // We remove responseSchema and rely on the prompt + cleanAndParseJson for better stability with tools.
     
+    // Fallback: If URL is invalid, throw early
+    if (!url.includes('youtu')) {
+        throw new Error("Invalid YouTube URL");
+    }
+
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Upgraded to Pro for better analysis
+      model: 'gemini-3-pro-preview',
       contents: `You are a YouTube Algorithm Expert.
       I have a YouTube video Link: ${url}
       
@@ -214,11 +240,11 @@ export const auditVideo = async (url: string, language: Language) => {
       2. Analyze why this video is good or bad.
       3. CRITICAL: Provide the response entirely in ${langName}.
       
-      RETURN JSON ONLY (No Markdown, just raw JSON if possible, or wrapped in json code block):
+      RETURN RAW JSON ONLY (Start with { and end with }). NO MARKDOWN.
       {
         "videoTitle": "Found Title",
         "channelName": "Found Channel Name",
-        "score": 85, // 0-100 Algorithm Fit Score
+        "score": 85, 
         "summary": "Short explanation in ${langName}.",
         "positives": ["Good point 1", "Good point 2"],
         "negatives": ["Improvement 1", "Improvement 2"],
@@ -226,7 +252,6 @@ export const auditVideo = async (url: string, language: Language) => {
       }`,
       config: {
         tools: [{ googleSearch: {} }]
-        // Removed responseMimeType: 'application/json' to avoid tool conflict
       }
     });
     return response.text;
@@ -237,6 +262,8 @@ export const auditVideo = async (url: string, language: Language) => {
 };
 
 export const generateThumbnailImage = async (prompt: string, aspectRatio: string = "16:9") => {
+  if (!checkApiKey()) throw new Error("Missing API Key");
+
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
@@ -273,15 +300,18 @@ export const generateThumbnailImage = async (prompt: string, aspectRatio: string
 };
 
 export const generateViralStrategy = async (topic: string, language: Language) => {
+  if (!checkApiKey()) throw new Error("Missing API Key");
+
   try {
     const langName = getLangName(language);
     const isUrl = topic.toLowerCase().includes('youtube.com') || topic.toLowerCase().includes('youtu.be');
     
     let contents = '';
     
+    // Strict structure for cleaner parsing
     const jsonStructure = `
     {
-      "originalChannel": "Channel Name (if URL provided)",
+      "originalChannel": "Channel Name (if URL provided) or N/A",
       "strategyTitle": "Viral Strategy Title",
       "trendContext": "Why is this relevant now?",
       "analysis": {
@@ -317,24 +347,24 @@ export const generateViralStrategy = async (topic: string, language: Language) =
       
       TASK:
       1. Search this video's title, EXACT Channel Name, and performance using Google Search.
-      2. ANALYZE the video in ${langName}: 
-         - What are its Strengths?
-         - What are its Weaknesses?
+      2. ANALYZE the video in ${langName}.
       3. Generate a "Viral Strategy" for a NEW competing video in ${langName}.
       
-      CRITICAL: RETURN JSON ONLY. Use this structure:
+      CRITICAL: RETURN RAW JSON ONLY (Start with { and end with }). NO MARKDOWN.
+      Structure:
       ${jsonStructure}`;
     } else {
       contents = `You are a YouTube Strategist. Topic: "${topic}".
       
       Generate a Viral Strategy in ${langName}.
       
-      CRITICAL: RETURN JSON ONLY. Use this structure:
+      CRITICAL: RETURN RAW JSON ONLY (Start with { and end with }). NO MARKDOWN.
+      Structure:
       ${jsonStructure}`;
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Upgraded to Pro for better reasoning
+      model: 'gemini-3-pro-preview',
       contents: contents,
       config: config
     });
@@ -347,6 +377,8 @@ export const generateViralStrategy = async (topic: string, language: Language) =
 };
 
 export const getPublicChannelInfo = async (query: string, language: Language) => {
+  if (!checkApiKey()) throw new Error("Missing API Key");
+  
   try {
       const response = await ai.models.generateContent({
           model: 'gemini-3-pro-preview',
@@ -361,7 +393,7 @@ export const getPublicChannelInfo = async (query: string, language: Language) =>
           4. Total Video Count (approx)
           5. 4 Most Recent or Popular Videos (Title, Views, Date, URL)
           
-          Return JSON ONLY:
+          Return RAW JSON ONLY (Start with { and end with }). NO MARKDOWN.
           {
               "name": "Channel Name",
               "subscriberCount": "1.5M",
@@ -379,7 +411,7 @@ export const getPublicChannelInfo = async (query: string, language: Language) =>
               ]
           }
           
-          Note: For thumbnails, try to construct the URL if you find the Video ID (e.g. img.youtube.com/vi/ID/mqdefault.jpg).
+          Note: For thumbnails, try to construct the URL if you find the Video ID.
           `,
           config: {
               tools: [{ googleSearch: {} }]
