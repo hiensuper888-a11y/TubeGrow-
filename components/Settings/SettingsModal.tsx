@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Key, Crown, CheckCircle2 } from 'lucide-react';
+import { X, Save, Key, Zap, CheckCircle2, Globe } from 'lucide-react';
 import { getApiKey, setApiKey } from '../../services/geminiService';
 
 interface SettingsModalProps {
@@ -8,19 +8,19 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [bonsaiKey, setLocalBonsaiKey] = useState('');
+  const [apiKey, setLocalApiKey] = useState('');
   const [status, setStatus] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
-      setLocalBonsaiKey(getApiKey());
+      setLocalApiKey(getApiKey());
       setStatus('');
     }
   }, [isOpen]);
 
   const handleSave = () => {
-    setApiKey(bonsaiKey);
-    setStatus('Bonsai Key saved successfully!');
+    setApiKey(apiKey);
+    setStatus('API Key saved successfully!');
     setTimeout(() => {
         onClose();
         window.location.reload(); // Reload to refresh services
@@ -45,32 +45,34 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
             
-            {/* Bonsai Master Key */}
-            <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 p-5 rounded-xl border border-purple-500/30">
+            {/* Gemini Key */}
+            <div className="bg-gradient-to-br from-neutral-800 to-neutral-900 p-5 rounded-xl border border-white/10">
                 <div className="flex items-center gap-2 mb-3">
-                    <Crown size={18} className="text-yellow-400" />
+                    <Zap size={18} className="text-blue-400" />
                     <label className="text-sm font-bold text-white uppercase tracking-wider">
-                        Bonsai API (Master Key)
+                        Google Gemini API Key
                     </label>
                 </div>
                 <input 
                     type="password" 
-                    value={bonsaiKey}
-                    onChange={(e) => setLocalBonsaiKey(e.target.value)}
-                    placeholder="sk_cr_..."
-                    className="w-full bg-black/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white text-sm focus:ring-2 focus:ring-purple-500 outline-none mb-3"
+                    value={apiKey}
+                    onChange={(e) => setLocalApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3"
                 />
                 <p className="text-[10px] text-gray-400 mb-3">
-                    This single key powers all AI features (Gemini, GPT-4, Claude, Grok).
+                    Using unlimited token model (Gemini 3 Pro) with Google Search enabled.
                 </p>
 
                 <div className="grid grid-cols-2 gap-2">
-                    {['Gemini 3 Pro', 'ChatGPT-4o', 'Claude 3.5', 'Grok 3'].map(model => (
-                        <div key={model} className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-green-500/20">
-                            <CheckCircle2 size={12} className="text-green-500" />
-                            <span className="text-xs text-green-100 font-medium">{model} Active</span>
-                        </div>
-                    ))}
+                     <div className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-green-500/20">
+                        <CheckCircle2 size={12} className="text-green-500" />
+                        <span className="text-xs text-green-100 font-medium">Gemini 3 Pro</span>
+                    </div>
+                     <div className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-blue-500/20">
+                        <Globe size={12} className="text-blue-500" />
+                        <span className="text-xs text-blue-100 font-medium">Google Search</span>
+                    </div>
                 </div>
             </div>
 

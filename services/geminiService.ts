@@ -3,13 +3,14 @@ import { Language } from "../types";
 
 // --- KEY MANAGEMENT ---
 
+const DEFAULT_KEY = 'AIzaSyBkpRo1ZxRXTTV4djHQHT6A6SMKihdVUaw';
+
 export const getApiKey = () => {
-  // User instruction: Bonsai key includes Gemini.
-  return localStorage.getItem(`tubegrow_bonsai_key`) || 'sk_cr_9TxTcembyRp6oEC5VrDNpsQeGZLK6u2z1T7zfcDcwvaQ';
+  return localStorage.getItem(`tubegrow_gemini_key`) || DEFAULT_KEY;
 };
 
 export const setApiKey = (key: string) => {
-  localStorage.setItem(`tubegrow_bonsai_key`, key.trim());
+  localStorage.setItem(`tubegrow_gemini_key`, key.trim());
 };
 
 // Helper to check if API key is available
@@ -45,7 +46,7 @@ const getFriendlyError = (error: any) => {
 
   // Common Gemini Error Codes
   if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
-      return `Gemini Quota Exceeded. The free tier limit has been reached. Please wait a moment or use a paid API Key.`;
+      return `Gemini Limit Reached. Please wait a moment.`;
   }
   if (msg.includes('503') || msg.includes('Overloaded')) {
       return `Gemini Server Overloaded. Please try again later.`;
@@ -54,10 +55,10 @@ const getFriendlyError = (error: any) => {
       return `Gemini blocked this content. Please modify your prompt.`;
   }
   if (msg.includes('401') || msg.includes('API key not valid')) {
-      return `Invalid API Key. Please check your Bonsai/Gemini settings.`;
+      return `Invalid API Key. Please check settings.`;
   }
 
-  return `AI Error: ${msg}`;
+  return `Gemini Error: ${msg}`;
 };
 
 
@@ -118,7 +119,7 @@ const callGemini = async (
         });
         return response.text;
     } catch (e: any) {
-        console.warn("AI Failed:", e);
+        console.warn("Gemini Failed:", e);
         throw new Error(getFriendlyError(e));
     }
 };
@@ -183,7 +184,7 @@ export const generateScript = async (title: string, points: string, language: La
             model: "gemini-3-pro-preview",
             contents: `Write a deep, engaging YouTube script for "${title}". Key points: ${points}. Language: ${langName}.`,
             config: {
-                thinkingConfig: { thinkingBudget: 16000 } // Reduced budget to avoid hitting quota too fast
+                thinkingConfig: { thinkingBudget: 16000 } // Generous budget
             }
         });
         return response.text;
@@ -199,6 +200,7 @@ export const generateScript = async (title: string, points: string, language: La
 
 /**
  * TREND HUNTER
+ * Uses Google Search Grounding
  */
 export const findTrends = async (niche: string, language: Language) => {
   if (!checkApiKey()) {
@@ -215,7 +217,7 @@ export const findTrends = async (niche: string, language: Language) => {
         model: 'gemini-3-pro-preview',
         contents: `Find latest trending topics in "${niche}". Language: ${langName}. Format: Markdown list with source links.`,
         config: {
-            tools: [{ googleSearch: {} }]
+            tools: [{ googleSearch: {} }] // Enable Google Search
         }
         });
         
@@ -299,6 +301,7 @@ export const analyzeUploadedVideo = async (base64Data: string, mimeType: string,
 
 /**
  * VIDEO AUDIT
+ * Uses Google Search Grounding
  */
 export const auditVideo = async (url: string, language: Language) => {
   if (!checkApiKey()) {
@@ -313,9 +316,9 @@ export const auditVideo = async (url: string, language: Language) => {
     try {
         const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: `Analyze YouTube video: ${url}. Use Search. Lang: ${langName}. JSON format.`,
+        contents: `Analyze YouTube video: ${url}. Use Search to find its metadata and recent performance. Lang: ${langName}. Output JSON format.`,
         config: {
-            tools: [{ googleSearch: {} }]
+            tools: [{ googleSearch: {} }] // Enable Google Search
         }
         });
         return { text: response.text, groundingMetadata: response.candidates?.[0]?.groundingMetadata };
@@ -335,6 +338,7 @@ export const generateThumbnailImage = async (prompt: string, aspectRatio: string
 
   const ai = getGeminiClient();
   
+  // Use Pro Image preview for HD results
   let model = 'gemini-2.5-flash-image';
   if (quality === 'hd') {
       model = 'gemini-3-pro-image-preview';
@@ -443,7 +447,7 @@ export const getPublicChannelInfo = async (query: string, language: Language) =>
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Find channel info: "${query}". JSON format.`,
-            config: { tools: [{ googleSearch: {} }] }
+            config: { tools: [{ googleSearch: {} }] } // Search Enabled
         });
         return response.text;
       } catch (error) {}
