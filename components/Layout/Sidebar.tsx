@@ -1,23 +1,28 @@
 import React from 'react';
-import { LayoutDashboard, Wand2, FileText, TrendingUp, Image as ImageIcon, SearchCheck, ImagePlus, LogOut, Zap, Play, CircleUser } from 'lucide-react';
+import { LayoutDashboard, Wand2, FileText, TrendingUp, Image as ImageIcon, SearchCheck, ImagePlus, LogOut, Zap, Play, CircleUser, Settings, AlertTriangle, MessageSquare, AudioWaveform } from 'lucide-react';
 import { AppView, Language } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { checkApiKey } from '../../services/geminiService';
 
 interface SidebarProps {
   currentView: AppView;
   onViewChange: (view: AppView) => void;
   isOpen: boolean;
+  onOpenSettings: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen, onOpenSettings }) => {
   const { t, language, setLanguage } = useLanguage();
   const { user, logout } = useAuth();
+  const hasKey = checkApiKey();
 
   const menuItems = [
     { id: AppView.DASHBOARD, label: t.sidebar.dashboard, icon: LayoutDashboard },
     { id: AppView.CHANNEL_MANAGER, label: t.sidebar.channelManager, icon: CircleUser },
     { id: AppView.VIRAL_STRATEGY, label: t.sidebar.viralStrategy, icon: Zap },
+    { id: AppView.CHAT_ASSISTANT, label: 'AI Assistant', icon: MessageSquare }, // New
+    { id: AppView.AI_STUDIO, label: 'AI Studio (Veo/TTS)', icon: AudioWaveform }, // New
     { id: AppView.VIDEO_AUDIT, label: t.sidebar.videoAudit, icon: SearchCheck },
     { id: AppView.TREND_HUNTER, label: t.sidebar.trendHunter, icon: TrendingUp },
     { id: AppView.OPTIMIZER, label: t.sidebar.optimizer, icon: Wand2 },
@@ -56,6 +61,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) 
          <span className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold group-hover:text-yt-red transition-colors duration-300 mt-1">
             {t.auth.byAuthor}
          </span>
+
+         {!hasKey && (
+             <div className="mt-3 px-3 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full flex items-center gap-2">
+                 <AlertTriangle size={10} className="text-yellow-500" />
+                 <span className="text-[10px] font-bold text-yellow-500 uppercase tracking-wide">Demo Mode Active</span>
+             </div>
+         )}
       </div>
       
       {/* Navigation */}
@@ -65,6 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) 
           const Icon = item.icon;
           const isActive = currentView === item.id;
           const isViral = item.id === AppView.VIRAL_STRATEGY;
+          const isStudio = item.id === AppView.AI_STUDIO;
           return (
             <button
               key={item.id}
@@ -75,11 +88,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) 
                   ? 'bg-gradient-to-r from-yt-red to-red-900/80 text-white shadow-lg shadow-red-900/40 translate-x-1' 
                   : isViral 
                     ? 'text-yellow-400 hover:bg-yellow-500/10 hover:shadow-[0_0_15px_rgba(234,179,8,0.2)]'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white hover:pl-5'
+                    : isStudio
+                        ? 'text-purple-400 hover:bg-purple-500/10'
+                        : 'text-gray-400 hover:bg-white/5 hover:text-white hover:pl-5'
               }`}
             >
               <Icon size={20} className={`flex-shrink-0 transition-colors duration-300 ${
-                  isActive ? 'text-white' : isViral ? 'text-yellow-400 animate-pulse' : 'text-gray-500 group-hover:text-white'
+                  isActive ? 'text-white' : isViral ? 'text-yellow-400 animate-pulse' : isStudio ? 'text-purple-400' : 'text-gray-500 group-hover:text-white'
               }`} />
               <span className={`font-medium tracking-wide truncate ${isActive ? 'font-bold' : ''}`}>{item.label}</span>
               
@@ -93,6 +108,18 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen }) 
             </button>
           );
         })}
+
+        {/* Settings Button */}
+        <div className="mt-4 pt-4 border-t border-white/5">
+             <button
+              onClick={onOpenSettings}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 group text-gray-400 hover:bg-white/5 hover:text-white hover:pl-5"
+             >
+                <Settings size={20} className={`text-gray-500 group-hover:text-white transition-all duration-500 ${!hasKey ? 'animate-pulse text-yellow-500' : ''}`} />
+                <span className="font-medium tracking-wide truncate">Settings & Keys</span>
+                {!hasKey && <div className="w-2 h-2 rounded-full bg-yellow-500 ml-auto"></div>}
+             </button>
+        </div>
       </nav>
       
       {/* Footer / User Profile */}

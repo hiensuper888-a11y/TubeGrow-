@@ -1,12 +1,13 @@
 import React, { useState, Suspense } from 'react';
 import Sidebar from './components/Layout/Sidebar';
 import AuthPage from './components/Auth/AuthPage';
+import SettingsModal from './components/Settings/SettingsModal';
 import { AppView } from './types';
 import { Menu, Loader2 } from 'lucide-react';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-// Lazy load components to split chunks and fix build size warnings
+// Lazy load components
 const Dashboard = React.lazy(() => import('./components/Tools/Dashboard'));
 const Optimizer = React.lazy(() => import('./components/Tools/Optimizer'));
 const ScriptWriter = React.lazy(() => import('./components/Tools/ScriptWriter'));
@@ -16,14 +17,17 @@ const ThumbnailMaker = React.lazy(() => import('./components/Tools/ThumbnailMake
 const VideoAudit = React.lazy(() => import('./components/Tools/VideoAudit'));
 const ViralStrategy = React.lazy(() => import('./components/Tools/ViralStrategy'));
 const ChannelManager = React.lazy(() => import('./components/Tools/ChannelManager'));
+const ChatAssistant = React.lazy(() => import('./components/Tools/ChatAssistant'));
+const AIStudio = React.lazy(() => import('./components/Tools/AIStudio'));
 
 const MainApp: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeVideoData, setActiveVideoData] = useState<{ url?: string; topic?: string }>({});
 
-  // Show loading screen while checking for auto-login
+  // Show loading screen
   if (isLoading) {
     return (
         <div className="flex h-screen w-full items-center justify-center bg-[#080808] text-white">
@@ -67,6 +71,10 @@ const MainApp: React.FC = () => {
         return <VideoAudit initialUrl={activeVideoData.url} />;
       case AppView.VIRAL_STRATEGY:
         return <ViralStrategy initialTopic={activeVideoData.topic || activeVideoData.url} onNavigate={handleNavigate} />;
+      case AppView.CHAT_ASSISTANT:
+        return <ChatAssistant />;
+      case AppView.AI_STUDIO:
+        return <AIStudio />;
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }
@@ -74,12 +82,11 @@ const MainApp: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#080808] text-white flex overflow-hidden font-sans selection:bg-yt-red selection:text-white relative">
-      {/* Enhanced Background Gradients with Float Animation */}
+      {/* Background Gradients */}
       <div className="fixed inset-0 w-full h-full pointer-events-none z-0">
           <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-red-800/10 rounded-full blur-[120px] animate-float opacity-50"></div>
           <div className="absolute bottom-[-20%] left-[-10%] w-[700px] h-[700px] bg-blue-900/10 rounded-full blur-[130px] animate-float-delayed opacity-40"></div>
           <div className="absolute top-[40%] left-[40%] w-[500px] h-[500px] bg-purple-900/5 rounded-full blur-[100px] animate-pulse-slow"></div>
-          {/* Subtle grid pattern */}
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay"></div>
       </div>
 
@@ -89,21 +96,26 @@ const MainApp: React.FC = () => {
         onClick={() => setIsMobileMenuOpen(false)}
       />
 
+      {/* Settings Modal */}
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
       {/* Sidebar */}
       <Sidebar 
         currentView={currentView} 
         onViewChange={(view) => {
             setCurrentView(view);
             setIsMobileMenuOpen(false);
-            // Clear active data when manually navigating via sidebar to keep tools clean
             setActiveVideoData({});
         }}
         isOpen={isMobileMenuOpen}
+        onOpenSettings={() => {
+            setIsSettingsOpen(true);
+            setIsMobileMenuOpen(false);
+        }}
       />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 z-10 relative">
-        {/* Mobile Header with Glassmorphism */}
         <div className="md:hidden flex items-center p-4 border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-30">
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
@@ -114,7 +126,6 @@ const MainApp: React.FC = () => {
           <span className="ml-3 font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">TubeGrow AI</span>
         </div>
 
-        {/* Content Area */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar scroll-smooth">
           <div className="animate-fade-in max-w-7xl mx-auto">
              <Suspense fallback={

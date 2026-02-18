@@ -1,5 +1,7 @@
 {
-  "name": "Increasing view youtube short/normal",
-  "description": "",
-  "requestFramePermissions": []
+  "name": "TubeGrow AI",
+  "description": "AI-Powered YouTube Growth Tool",
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
