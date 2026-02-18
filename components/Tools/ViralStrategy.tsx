@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { generateViralStrategy, generateThumbnailImage, cleanAndParseJson, checkApiKey } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Zap, Loader2, Target, Type, Image as ImageIcon, FileText, Megaphone, CheckCircle2, Copy, Download, SearchCheck, ThumbsUp, ThumbsDown, Tv, AlertCircle } from 'lucide-react';
+import { Zap, Loader2, Target, Type, Image as ImageIcon, FileText, Megaphone, CheckCircle2, Copy, Download, SearchCheck, ThumbsUp, ThumbsDown, Tv, AlertCircle, Globe, ExternalLink } from 'lucide-react';
 import { AppView } from '../../types';
 
 interface ViralStrategyProps {
@@ -108,16 +108,16 @@ ${getList(result.promotionPlan)}
 
     try {
       // 1. Generate Text Strategy
-      const jsonStr = await generateViralStrategy(topic, language);
+      const { text, groundingMetadata } = await generateViralStrategy(topic, language);
       
-      if (!jsonStr) {
+      if (!text) {
           throw new Error("AI returned empty response.");
       }
 
-      const parsed = cleanAndParseJson(jsonStr);
+      const parsed = cleanAndParseJson(text);
       
       if (parsed) {
-          setResult(parsed);
+          setResult({ ...parsed, groundingMetadata });
 
           // 2. Generate Image immediately if we have a description
           if (parsed.thumbnailIdea?.visualDescription) {
@@ -424,6 +424,34 @@ ${getList(result.promotionPlan)}
               </div>
 
             </div>
+
+             {/* Google Search Sources Footer */}
+             {result.groundingMetadata?.groundingChunks && (
+                <div className="mt-8 bg-black/20 p-4 rounded-xl border border-white/5">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <Globe size={12} /> Sources used for analysis
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                        {result.groundingMetadata.groundingChunks.map((chunk: any, i: number) => {
+                            if (chunk.web) {
+                                return (
+                                <a 
+                                    key={i} 
+                                    href={chunk.web.uri} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800 rounded-lg hover:bg-neutral-700 transition-colors text-xs text-gray-400 hover:text-white border border-white/5"
+                                >
+                                    <span className="truncate max-w-[200px]">{chunk.web.title}</span>
+                                    <ExternalLink size={10} className="flex-shrink-0" />
+                                </a>
+                                );
+                            }
+                            return null;
+                        })}
+                    </div>
+                </div>
+             )}
 
             {/* Bottom Download Button */}
             <div className="flex justify-center mt-8">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auditVideo, cleanAndParseJson, checkApiKey } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Search, Loader2, CheckCircle2, XCircle, TrendingUp, Youtube, ExternalLink, AlertCircle } from 'lucide-react';
+import { Search, Loader2, CheckCircle2, XCircle, TrendingUp, Youtube, ExternalLink, AlertCircle, Globe } from 'lucide-react';
 
 interface VideoAuditProps {
   initialUrl?: string;
@@ -33,11 +33,11 @@ const VideoAudit: React.FC<VideoAuditProps> = ({ initialUrl }) => {
     }
 
     try {
-      const jsonStr = await auditVideo(url, language);
-      if (jsonStr) {
-        const parsed = cleanAndParseJson(jsonStr);
+      const { text, groundingMetadata } = await auditVideo(url, language);
+      if (text) {
+        const parsed = cleanAndParseJson(text);
         if (parsed) {
-          setResult(parsed);
+          setResult({ ...parsed, groundingMetadata });
         } else {
           setError("Failed to parse analysis data. Try again.");
         }
@@ -182,6 +182,34 @@ const VideoAudit: React.FC<VideoAuditProps> = ({ initialUrl }) => {
               ))}
             </div>
           </div>
+
+          {/* Google Search Citations */}
+          {result.groundingMetadata?.groundingChunks && (
+            <div className="bg-neutral-900/50 p-4 rounded-xl border border-neutral-800">
+              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Globe size={12} /> Search Sources
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {result.groundingMetadata.groundingChunks.map((chunk: any, i: number) => {
+                  if (chunk.web) {
+                    return (
+                      <a 
+                        key={i} 
+                        href={chunk.web.uri} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800 rounded-lg hover:bg-neutral-700 transition-colors text-xs text-gray-400 hover:text-white border border-white/5"
+                      >
+                         <span className="truncate max-w-[150px]">{chunk.web.title}</span>
+                         <ExternalLink size={10} className="flex-shrink-0" />
+                      </a>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

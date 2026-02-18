@@ -8,6 +8,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, name?: string) => void;
   logout: () => void;
 }
@@ -16,13 +17,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Check local storage on mount
-    const storedUser = localStorage.getItem('tubeGrowUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const initAuth = async () => {
+        try {
+            const storedUser = localStorage.getItem('tubeGrowUser');
+            if (storedUser) {
+                setUser(JSON.parse(storedUser));
+            }
+        } catch (error) {
+            console.error("Auto-login failed:", error);
+            localStorage.removeItem('tubeGrowUser');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    initAuth();
   }, []);
 
   const login = (email: string, name: string = 'User') => {
@@ -37,7 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

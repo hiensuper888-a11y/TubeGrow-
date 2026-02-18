@@ -2,40 +2,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Language } from "../types";
 
 // Helper to check API key safety
-const getApiKey = () => {
-  try {
-    // Check process.env (Standard Node/Vercel)
-    // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      // @ts-ignore
-      return process.env.API_KEY;
-    }
-    // Check import.meta.env (Vite/Modern Bundlers)
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-      // @ts-ignore
-      return import.meta.env.VITE_API_KEY;
-    }
-  } catch (e) {
-    console.warn("Error accessing environment variables", e);
-  }
-  return 'AIzaSyBkpRo1ZxRXTTV4djHQHT6A6SMKihdVUaw';
-};
-
-const apiKey = getApiKey();
-
-// Initialize AI cautiously. 
-let ai: GoogleGenAI;
-try {
-    ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-to-prevent-crash' });
-} catch (error) {
-    console.error("Failed to initialize GoogleGenAI", error);
-    ai = { models: {}, chats: {} } as any; 
-}
-
-// Helper to check API key
 export const checkApiKey = (): boolean => {
-  return !!apiKey && apiKey !== 'dummy-key-to-prevent-crash';
+  return !!process.env.API_KEY;
 };
 
 const getLangName = (lang: Language) => {
@@ -86,7 +54,8 @@ export const cleanAndParseJson = (text: string) => {
 };
 
 export const generateVideoMetadata = async (topic: string, tone: string, language: Language) => {
-  if (!checkApiKey()) throw new Error("Missing API Key");
+  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
     const langName = getLangName(language);
@@ -125,7 +94,8 @@ export const generateVideoMetadata = async (topic: string, tone: string, languag
 };
 
 export const generateScript = async (title: string, points: string, language: Language) => {
-  if (!checkApiKey()) throw new Error("Missing API Key");
+  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const langName = getLangName(language);
@@ -153,7 +123,8 @@ export const generateScript = async (title: string, points: string, language: La
 };
 
 export const findTrends = async (niche: string, language: Language) => {
-  if (!checkApiKey()) throw new Error("Missing API Key");
+  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const langName = getLangName(language);
@@ -182,7 +153,8 @@ export const findTrends = async (niche: string, language: Language) => {
 };
 
 export const analyzeThumbnail = async (base64Image: string, mimeType: string, context: string, language: Language) => {
-  if (!checkApiKey()) throw new Error("Missing API Key");
+  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const langName = getLangName(language);
@@ -220,7 +192,8 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
 };
 
 export const auditVideo = async (url: string, language: Language) => {
-  if (!checkApiKey()) throw new Error("Missing API Key");
+  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const langName = getLangName(language);
@@ -240,7 +213,11 @@ export const auditVideo = async (url: string, language: Language) => {
       2. Analyze why this video is good or bad.
       3. CRITICAL: Provide the response entirely in ${langName}.
       
-      RETURN RAW JSON ONLY (Start with { and end with }). NO MARKDOWN.
+      Format the output as a JSON object inside a JSON code block.
+      Do not include the search results in the output text, just use them to inform your JSON response.
+      
+      JSON Structure:
+      \`\`\`json
       {
         "videoTitle": "Found Title",
         "channelName": "Found Channel Name",
@@ -249,12 +226,17 @@ export const auditVideo = async (url: string, language: Language) => {
         "positives": ["Good point 1", "Good point 2"],
         "negatives": ["Improvement 1", "Improvement 2"],
         "suggestions": ["Action 1", "Action 2"]
-      }`,
+      }
+      \`\`\``,
       config: {
         tools: [{ googleSearch: {} }]
       }
     });
-    return response.text;
+    
+    return {
+        text: response.text,
+        groundingMetadata: response.candidates?.[0]?.groundingMetadata
+    };
   } catch (error) {
     console.error("Gemini Audit Error:", error);
     throw error;
@@ -262,7 +244,8 @@ export const auditVideo = async (url: string, language: Language) => {
 };
 
 export const generateThumbnailImage = async (prompt: string, aspectRatio: string = "16:9") => {
-  if (!checkApiKey()) throw new Error("Missing API Key");
+  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const response = await ai.models.generateContent({
@@ -300,7 +283,8 @@ export const generateThumbnailImage = async (prompt: string, aspectRatio: string
 };
 
 export const generateViralStrategy = async (topic: string, language: Language) => {
-  if (!checkApiKey()) throw new Error("Missing API Key");
+  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const langName = getLangName(language);
@@ -350,17 +334,23 @@ export const generateViralStrategy = async (topic: string, language: Language) =
       2. ANALYZE the video in ${langName}.
       3. Generate a "Viral Strategy" for a NEW competing video in ${langName}.
       
-      CRITICAL: RETURN RAW JSON ONLY (Start with { and end with }). NO MARKDOWN.
+      CRITICAL: Return a JSON object inside a JSON code block.
+      
       Structure:
-      ${jsonStructure}`;
+      \`\`\`json
+      ${jsonStructure}
+      \`\`\``;
     } else {
       contents = `You are a YouTube Strategist. Topic: "${topic}".
       
       Generate a Viral Strategy in ${langName}.
       
-      CRITICAL: RETURN RAW JSON ONLY (Start with { and end with }). NO MARKDOWN.
+      CRITICAL: Return a JSON object inside a JSON code block.
+      
       Structure:
-      ${jsonStructure}`;
+      \`\`\`json
+      ${jsonStructure}
+      \`\`\``;
     }
 
     const response = await ai.models.generateContent({
@@ -369,7 +359,10 @@ export const generateViralStrategy = async (topic: string, language: Language) =
       config: config
     });
     
-    return response.text;
+    return {
+        text: response.text,
+        groundingMetadata: response.candidates?.[0]?.groundingMetadata
+    };
   } catch (error) {
     console.error("Gemini Strategy Error:", error);
     throw error;
@@ -377,7 +370,8 @@ export const generateViralStrategy = async (topic: string, language: Language) =
 };
 
 export const getPublicChannelInfo = async (query: string, language: Language) => {
-  if (!checkApiKey()) throw new Error("Missing API Key");
+  if (!process.env.API_KEY) throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
       const response = await ai.models.generateContent({

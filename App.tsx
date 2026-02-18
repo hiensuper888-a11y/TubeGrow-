@@ -18,10 +18,22 @@ const ViralStrategy = React.lazy(() => import('./components/Tools/ViralStrategy'
 const ChannelManager = React.lazy(() => import('./components/Tools/ChannelManager'));
 
 const MainApp: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeVideoData, setActiveVideoData] = useState<{ url?: string; topic?: string }>({});
+
+  // Show loading screen while checking for auto-login
+  if (isLoading) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center bg-[#080808] text-white">
+            <div className="flex flex-col items-center gap-4">
+                <Loader2 className="animate-spin text-yt-red" size={48} />
+                <p className="text-gray-500 font-medium animate-pulse">Initializing TubeGrow AI...</p>
+            </div>
+        </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <AuthPage />;
