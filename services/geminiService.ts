@@ -26,6 +26,41 @@ const getLangName = (lang: Language) => {
   }
 };
 
+// --- ERROR HANDLING ---
+
+const getFriendlyError = (error: any, provider: string = 'AI') => {
+  let msg = error.message || String(error);
+
+  // Attempt to parse JSON-like error messages often returned by SDKs
+  if (msg.includes('{') && msg.includes('}')) {
+     try {
+         // Extract JSON part if mixed with text
+         const jsonMatch = msg.match(/({[\s\S]*})/);
+         if (jsonMatch) {
+             const errorObj = JSON.parse(jsonMatch[0]);
+             if (errorObj.error?.message) msg = errorObj.error.message;
+         }
+     } catch (e) {}
+  }
+
+  // Common Gemini/OpenAI Error Codes
+  if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
+      return `${provider} Quota Exceeded. The free tier limit may have been reached. Please use a paid API Key or wait.`;
+  }
+  if (msg.includes('503') || msg.includes('Overloaded')) {
+      return `${provider} Server Overloaded. Please try again later.`;
+  }
+  if (msg.includes('SAFETY') || msg.includes('BLOCKED')) {
+      return `${provider} content blocked. Please modify your prompt.`;
+  }
+  if (msg.includes('401') || msg.includes('API key not valid')) {
+      return `Invalid ${provider} API Key. Please check your settings.`;
+  }
+
+  return `${provider} Error: ${msg}`;
+};
+
+
 // --- CLIENT HELPERS ---
 
 const getGeminiClient = () => {
@@ -35,7 +70,6 @@ const getGeminiClient = () => {
 };
 
 // --- HELPER: AUDIO DECODING ---
-// Helper to decode base64 raw PCM audio (16-bit, 24kHz) from Gemini TTS
 export const decodePCMData = (base64String: string, audioContext: AudioContext) => {
   const binaryString = atob(base64String);
   const len = binaryString.length;
@@ -44,17 +78,14 @@ export const decodePCMData = (base64String: string, audioContext: AudioContext) 
     bytes[i] = binaryString.charCodeAt(i);
   }
 
-  // Convert Uint8Array bytes (representing Int16) to Float32
   const dataInt16 = new Int16Array(bytes.buffer);
   const numChannels = 1;
   const frameCount = dataInt16.length / numChannels;
   
-  // Create buffer (standard sample rate for Gemini TTS is 24000)
   const buffer = audioContext.createBuffer(numChannels, frameCount, 24000);
   const channelData = buffer.getChannelData(0);
   
   for (let i = 0; i < frameCount; i++) {
-    // Normalize Int16 to Float32 [-1.0, 1.0]
     channelData[i] = dataInt16[i] / 32768.0;
   }
   
@@ -72,26 +103,30 @@ const callOpenAIChat = async (messages: any[], model: string = 'gpt-4o', jsonMod
     const key = getApiKey('openai');
     if (!key) throw new Error("OpenAI Key missing");
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`
-        },
-        body: JSON.stringify({
-            model: model,
-            messages: messages,
-            response_format: jsonMode ? { type: "json_object" } : undefined
-        })
-    });
+    try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                response_format: jsonMode ? { type: "json_object" } : undefined
+            })
+        });
 
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || 'OpenAI API Error');
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || 'OpenAI API Error');
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (e: any) {
+        throw new Error(getFriendlyError(e, 'OpenAI'));
     }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
 };
 
 // OpenAI Image (DALL-E)
@@ -99,28 +134,32 @@ const callOpenAIImage = async (prompt: string) => {
     const key = getApiKey('openai');
     if (!key) throw new Error("OpenAI Key missing");
 
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`
-        },
-        body: JSON.stringify({
-            model: "dall-e-3",
-            prompt: prompt,
-            n: 1,
-            size: "1024x1024",
-            response_format: "b64_json"
-        })
-    });
+    try {
+        const response = await fetch('https://api.openai.com/v1/images/generations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`
+            },
+            body: JSON.stringify({
+                model: "dall-e-3",
+                prompt: prompt,
+                n: 1,
+                size: "1024x1024",
+                response_format: "b64_json"
+            })
+        });
 
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || 'OpenAI Image Error');
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || 'OpenAI Image Error');
+        }
+        
+        const data = await response.json();
+        return data.data[0].b64_json;
+    } catch (e: any) {
+        throw new Error(getFriendlyError(e, 'OpenAI DALL-E'));
     }
-    
-    const data = await response.json();
-    return data.data[0].b64_json;
 };
 
 // Grok (xAI)
@@ -128,26 +167,30 @@ const callGrokChat = async (messages: any[], model: string = 'grok-beta') => {
     const key = getApiKey('grok');
     if (!key) throw new Error("Grok Key missing");
 
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`
-        },
-        body: JSON.stringify({
-            model: model,
-            messages: messages,
-            stream: false
-        })
-    });
+    try {
+        const response = await fetch('https://api.x.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                stream: false
+            })
+        });
 
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error?.message || `Grok API Error: ${response.statusText}`);
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error?.message || `Grok API Error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (e: any) {
+        throw new Error(getFriendlyError(e, 'Grok'));
     }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
 };
 
 // --- SMART ROUTER ---
@@ -171,7 +214,7 @@ const smartChatGen = async (
         }
     } catch (e: any) {
         console.warn("OpenAI Failed:", e);
-        errors.push(`OpenAI: ${e.message}`);
+        errors.push(e.message);
     }
 
     // 2. Try Grok
@@ -186,7 +229,7 @@ const smartChatGen = async (
         }
     } catch (e: any) {
         console.warn("Grok Failed:", e);
-        errors.push(`Grok: ${e.message}`);
+        errors.push(e.message);
     }
 
     // 3. Try Gemini
@@ -203,13 +246,13 @@ const smartChatGen = async (
             return response.text;
         } catch (e: any) {
             console.warn("Gemini Failed:", e);
-            errors.push(`Gemini: ${e.message}`);
+            errors.push(getFriendlyError(e, 'Gemini'));
         }
     } else {
         errors.push("Gemini: Key not configured");
     }
 
-    throw new Error("All AI services failed. Please check your API Keys in Settings.\n" + errors.join('\n'));
+    throw new Error("All AI services failed.\n" + errors.join('\n'));
 };
 
 // --- UTILS ---
@@ -234,7 +277,7 @@ export const cleanAndParseJson = (text: string) => {
 // --- FUNCTIONS ---
 
 /**
- * OPTIMIZER: Uses "Fast AI" (Flash Lite) for low latency
+ * OPTIMIZER
  */
 export const generateVideoMetadata = async (topic: string, tone: string, language: Language) => {
   if (!checkApiKey()) {
@@ -250,12 +293,11 @@ export const generateVideoMetadata = async (topic: string, tone: string, languag
   const systemPrompt = `YouTube SEO Expert. Tone: ${tone}. Language: ${langName}.`;
   const userPrompt = `Generate metadata for: "${topic}". JSON: { "titles": [], "description": "", "tags": "" }`;
 
-  // Use Flash-Lite for speed as requested
   return await smartChatGen(systemPrompt, userPrompt, 'gemini-2.5-flash-lite-preview', true);
 };
 
 /**
- * SCRIPT WRITER: Uses "Thinking Mode" with Gemini 3 Pro
+ * SCRIPT WRITER
  */
 export const generateScript = async (title: string, points: string, language: Language) => {
   if (!checkApiKey()) {
@@ -273,12 +315,14 @@ export const generateScript = async (title: string, points: string, language: La
             model: "gemini-3-pro-preview",
             contents: `Write a deep, engaging YouTube script for "${title}". Key points: ${points}. Language: ${langName}.`,
             config: {
-                thinkingConfig: { thinkingBudget: 32768 } // Max thinking budget
+                thinkingConfig: { thinkingBudget: 32768 } 
             }
         });
         return response.text;
       } catch (e) {
         console.warn("Gemini Thinking Mode failed, falling back...", e);
+        // Fallback to normal if thinking mode fails (e.g., quota)
+        if(String(e).includes('429')) throw new Error(getFriendlyError(e, 'Gemini'));
       }
   }
 
@@ -313,8 +357,9 @@ export const findTrends = async (niche: string, language: Language) => {
            text: response.text,
            groundingMetadata: response.candidates?.[0]?.groundingMetadata
         };
-      } catch (error) {
+      } catch (error: any) {
         console.warn("Gemini Search Error:", error);
+        if (error.message.includes('429')) throw new Error(getFriendlyError(error, 'Gemini'));
       }
   }
 
@@ -339,7 +384,6 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
 
   if (ai) {
     try {
-        // Use Pro for deep image analysis
         const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: {
@@ -350,11 +394,12 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
         }
         });
         return response.text;
-    } catch (error) {
+    } catch (error: any) {
         console.warn("Gemini Vision failed", error);
+        if (error.message.includes('429')) throw new Error(getFriendlyError(error, 'Gemini'));
     }
   }
-  // Fallback to OpenAI if Gemini fails
+  
   if (getApiKey('openai')) {
       try {
         const messages = [{
@@ -397,7 +442,7 @@ export const analyzeUploadedVideo = async (base64Data: string, mimeType: string,
             return response.text;
         } catch (e: any) {
             console.error("Video Analysis Error:", e);
-            throw new Error(e.message || "Failed to analyze video.");
+            throw new Error(getFriendlyError(e, 'Gemini'));
         }
     }
     
@@ -426,8 +471,9 @@ export const auditVideo = async (url: string, language: Language) => {
         }
         });
         return { text: response.text, groundingMetadata: response.candidates?.[0]?.groundingMetadata };
-    } catch (error) {
+    } catch (error: any) {
         console.warn("Gemini Audit Error:", error);
+        if (error.message.includes('429')) throw new Error(getFriendlyError(error, 'Gemini'));
     }
   }
 
@@ -439,14 +485,12 @@ export const auditVideo = async (url: string, language: Language) => {
 
 /**
  * THUMBNAIL MAKER
- * Supported models: 'gemini-3-pro-image-preview' (High Quality), 'gemini-2.5-flash-image' (Fast/Nano Banana)
  */
 export const generateThumbnailImage = async (prompt: string, aspectRatio: string = "16:9", quality: 'standard' | 'hd' = 'standard') => {
   if (!checkApiKey()) return `https://placehold.co/1280x720/1a1a1a/FFF?text=DEMO+AI`;
 
   const ai = getGeminiClient();
   
-  // Default to High Quality Pro model if requested
   let model = 'gemini-2.5-flash-image';
   if (quality === 'hd') {
       model = 'gemini-3-pro-image-preview';
@@ -460,15 +504,15 @@ export const generateThumbnailImage = async (prompt: string, aspectRatio: string
             config: { 
                 imageConfig: { 
                     aspectRatio: aspectRatio as any,
-                    // imageSize: quality === 'hd' ? '2K' : undefined // Only for pro model, but let's keep it simple
                 } 
             }
         });
         for (const part of response.candidates[0].content.parts) {
             if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
         }
-    } catch (e) {
+    } catch (e: any) {
         console.warn("Gemini Image Gen failed:", e);
+        if (e.message.includes('429')) throw new Error(getFriendlyError(e, 'Gemini'));
     }
   }
   
@@ -487,12 +531,10 @@ export const generateThumbnailImage = async (prompt: string, aspectRatio: string
  * VIRAL STRATEGY
  */
 export const generateViralStrategy = async (topic: string, language: Language) => {
-   // (Existing implementation kept for brevity, similar structure to Audit/Script)
    if (!checkApiKey()) {
       await mockDelay(2500);
       return { text: JSON.stringify({ strategyTitle: "[DEMO] Strategy" }), groundingMetadata: null };
    }
-   // ... implementation same as before ...
    const systemPrompt = `YouTube Strategist. Lang: ${getLangName(language)}.`;
    const userPrompt = `Strategy for "${topic}". JSON format.`;
    const text = await smartChatGen(systemPrompt, userPrompt, 'gemini-3-pro-preview', true);
@@ -519,7 +561,6 @@ export const getPublicChannelInfo = async (query: string, language: Language) =>
 
 /**
  * VEO VIDEO GENERATION
- * model: veo-3.1-fast-generate-preview
  */
 export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:16') => {
     const ai = getGeminiClient();
@@ -537,17 +578,14 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:
             }
         });
 
-        // Poll for completion
         while (!operation.done) {
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Poll every 5s
-            console.log("Polling Veo status...");
+            await new Promise(resolve => setTimeout(resolve, 5000));
             operation = await ai.operations.getVideosOperation({ operation: operation });
         }
 
         const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
         if (!downloadLink) throw new Error("No video URI returned");
 
-        // Fetch the actual video bytes using the API Key
         const apiKey = getApiKey('gemini');
         const videoResponse = await fetch(`${downloadLink}&key=${apiKey}`);
         if (!videoResponse.ok) throw new Error("Failed to download video bytes");
@@ -557,55 +595,60 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:
 
     } catch (e: any) {
         console.error("Veo Error:", e);
-        throw new Error(e.message || "Video generation failed");
+        throw new Error(getFriendlyError(e, 'Veo'));
     }
 };
 
 /**
  * TEXT TO SPEECH
- * model: gemini-2.5-flash-preview-tts
  */
 export const generateSpeech = async (text: string, voiceName: 'Kore' | 'Puck' | 'Charon' | 'Fenrir' | 'Zephyr' = 'Kore') => {
     const ai = getGeminiClient();
     if (!ai) throw new Error("Gemini API Key Required for TTS");
-
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: text }] }],
-        config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-                voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: voiceName },
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-preview-tts",
+            contents: [{ parts: [{ text: text }] }],
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName: voiceName },
+                    },
                 },
             },
-        },
-    });
+        });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Audio) throw new Error("No audio data returned");
-    return base64Audio;
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (!base64Audio) throw new Error("No audio data returned");
+        return base64Audio;
+    } catch (e: any) {
+        throw new Error(getFriendlyError(e, 'Gemini TTS'));
+    }
 };
 
 /**
  * AUDIO TRANSCRIPTION
- * model: gemini-3-flash-preview
  */
 export const transcribeAudio = async (base64Audio: string, mimeType: string) => {
     const ai = getGeminiClient();
     if (!ai) throw new Error("Gemini API Key Required");
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
-            parts: [
-                { inlineData: { mimeType: mimeType, data: base64Audio } },
-                { text: "Transcribe this audio accurately." }
-            ]
-        }
-    });
-
-    return response.text;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: mimeType, data: base64Audio } },
+                    { text: "Transcribe this audio accurately." }
+                ]
+            }
+        });
+        return response.text;
+    } catch (e: any) {
+        throw new Error(getFriendlyError(e, 'Gemini Transcription'));
+    }
 };
 
 /**
