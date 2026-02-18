@@ -63,7 +63,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                     type="password" 
                     value={geminiKey}
                     onChange={(e) => setGeminiKey(e.target.value)}
-                    placeholder={process.env.API_KEY ? "Using default env key (override here)" : "AIzaSy..."}
+                    placeholder="AIzaSy..."
                     className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-blue-400 flex items-center gap-1">

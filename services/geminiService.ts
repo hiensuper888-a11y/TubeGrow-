@@ -13,7 +13,8 @@ export const setApiKey = (provider: 'gemini' | 'openai' | 'grok', key: string) =
 
 // Helper to check if ANY AI service is available
 export const checkApiKey = (): boolean => {
-  return !!process.env.API_KEY || !!getApiKey('gemini') || !!getApiKey('openai') || !!getApiKey('grok');
+  // STRICTLY User provided keys only. No process.env fallback.
+  return !!getApiKey('gemini') || !!getApiKey('openai') || !!getApiKey('grok');
 };
 
 const getLangName = (lang: Language) => {
@@ -28,8 +29,7 @@ const getLangName = (lang: Language) => {
 // --- CLIENT HELPERS ---
 
 const getGeminiClient = () => {
-    // Prioritize user key, then env key
-    const key = getApiKey('gemini') || process.env.API_KEY;
+    const key = getApiKey('gemini');
     if (!key) return null;
     return new GoogleGenAI({ apiKey: key });
 };
@@ -500,7 +500,7 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:
         if (!downloadLink) throw new Error("No video URI returned");
 
         // Fetch the actual video bytes using the API Key
-        const apiKey = getApiKey('gemini') || process.env.API_KEY;
+        const apiKey = getApiKey('gemini');
         const videoResponse = await fetch(`${downloadLink}&key=${apiKey}`);
         if (!videoResponse.ok) throw new Error("Failed to download video bytes");
         
@@ -572,4 +572,3 @@ export const createChatSession = (systemInstruction: string) => {
         config: { systemInstruction }
     });
 };
-
