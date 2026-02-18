@@ -3,17 +3,18 @@ import { Language } from "../types";
 
 // --- KEY MANAGEMENT ---
 
-export const getApiKey = (provider: 'gemini' | 'openai' | 'grok') => {
-  return localStorage.getItem(`tubegrow_${provider}_key`) || '';
+export const getApiKey = () => {
+  // User instruction: Bonsai key includes Gemini.
+  return localStorage.getItem(`tubegrow_bonsai_key`) || 'sk_cr_9TxTcembyRp6oEC5VrDNpsQeGZLK6u2z1T7zfcDcwvaQ';
 };
 
-export const setApiKey = (provider: 'gemini' | 'openai' | 'grok', key: string) => {
-  localStorage.setItem(`tubegrow_${provider}_key`, key.trim());
+export const setApiKey = (key: string) => {
+  localStorage.setItem(`tubegrow_bonsai_key`, key.trim());
 };
 
-// Helper to check if ANY AI service is available
+// Helper to check if API key is available
 export const checkApiKey = (): boolean => {
-  return !!getApiKey('gemini') || !!getApiKey('openai') || !!getApiKey('grok');
+  return !!getApiKey();
 };
 
 const getLangName = (lang: Language) => {
@@ -27,11 +28,13 @@ const getLangName = (lang: Language) => {
 
 // --- ERROR HANDLING ---
 
-const getFriendlyError = (error: any, provider: string = 'AI') => {
+const getFriendlyError = (error: any) => {
   let msg = error.message || String(error);
 
+  // Attempt to parse JSON-like error messages often returned by SDKs
   if (msg.includes('{') && msg.includes('}')) {
      try {
+         // Extract JSON part if mixed with text
          const jsonMatch = msg.match(/({[\s\S]*})/);
          if (jsonMatch) {
              const errorObj = JSON.parse(jsonMatch[0]);
@@ -40,27 +43,28 @@ const getFriendlyError = (error: any, provider: string = 'AI') => {
      } catch (e) {}
   }
 
+  // Common Gemini Error Codes
   if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
-      return `${provider} Quota Exceeded. The free tier limit may have been reached. Please use a paid API Key or wait.`;
+      return `Gemini Quota Exceeded. The free tier limit has been reached. Please wait a moment or use a paid API Key.`;
   }
   if (msg.includes('503') || msg.includes('Overloaded')) {
-      return `${provider} Server Overloaded. Please try again later.`;
+      return `Gemini Server Overloaded. Please try again later.`;
   }
   if (msg.includes('SAFETY') || msg.includes('BLOCKED')) {
-      return `${provider} content blocked. Please modify your prompt.`;
+      return `Gemini blocked this content. Please modify your prompt.`;
   }
   if (msg.includes('401') || msg.includes('API key not valid')) {
-      return `Invalid ${provider} API Key. Please check your settings.`;
+      return `Invalid API Key. Please check your Bonsai/Gemini settings.`;
   }
 
-  return `${provider} Error: ${msg}`;
+  return `AI Error: ${msg}`;
 };
 
 
 // --- CLIENT HELPERS ---
 
 const getGeminiClient = () => {
-    const key = getApiKey('gemini');
+    const key = getApiKey();
     if (!key) return null;
     return new GoogleGenAI({ apiKey: key });
 };
@@ -92,164 +96,31 @@ export const decodePCMData = (base64String: string, audioContext: AudioContext) 
 // --- MOCK DATA GENERATORS (DEMO MODE) ---
 const mockDelay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- API CALLERS ---
+// --- CORE GENERATION FUNCTION ---
 
-// OpenAI (ChatGPT)
-const callOpenAIChat = async (messages: any[], model: string = 'gpt-4o', jsonMode: boolean = false) => {
-    const key = getApiKey('openai');
-    if (!key) throw new Error("OpenAI Key missing");
-
-    try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${key}`
-            },
-            body: JSON.stringify({
-                model: model,
-                messages: messages,
-                response_format: jsonMode ? { type: "json_object" } : undefined
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error?.message || 'OpenAI API Error');
-        }
-
-        const data = await response.json();
-        return data.choices[0].message.content;
-    } catch (e: any) {
-        throw new Error(getFriendlyError(e, 'OpenAI'));
-    }
-};
-
-// OpenAI Image (DALL-E)
-const callOpenAIImage = async (prompt: string) => {
-    const key = getApiKey('openai');
-    if (!key) throw new Error("OpenAI Key missing");
-
-    try {
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${key}`
-            },
-            body: JSON.stringify({
-                model: "dall-e-3",
-                prompt: prompt,
-                n: 1,
-                size: "1024x1024",
-                response_format: "b64_json"
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error?.message || 'OpenAI Image Error');
-        }
-        
-        const data = await response.json();
-        return data.data[0].b64_json;
-    } catch (e: any) {
-        throw new Error(getFriendlyError(e, 'OpenAI DALL-E'));
-    }
-};
-
-// Grok (xAI)
-const callGrokChat = async (messages: any[], model: string = 'grok-beta') => {
-    const key = getApiKey('grok');
-    if (!key) throw new Error("Grok Key missing");
-
-    try {
-        const response = await fetch('https://api.x.ai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${key}`
-            },
-            body: JSON.stringify({
-                model: model,
-                messages: messages,
-                stream: false
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error?.message || `Grok API Error: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return data.choices[0].message.content;
-    } catch (e: any) {
-        throw new Error(getFriendlyError(e, 'Grok'));
-    }
-};
-
-// --- SMART ROUTER ---
-
-const smartChatGen = async (
+const callGemini = async (
     systemPrompt: string, 
     userPrompt: string, 
-    fallbackModelGemini: string = 'gemini-3-flash-preview',
+    model: string = 'gemini-3-flash-preview',
     jsonMode: boolean = false
 ) => {
-    const errors: string[] = [];
-    const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-    ];
-
-    // 1. Try OpenAI
-    try {
-        if (getApiKey('openai')) {
-            return await callOpenAIChat(messages, 'gpt-4o', jsonMode);
-        }
-    } catch (e: any) {
-        console.warn("OpenAI Failed:", e);
-        errors.push(e.message);
-    }
-
-    // 2. Try Grok
-    try {
-        if (getApiKey('grok')) {
-            const content = await callGrokChat(messages, 'grok-beta');
-            if (jsonMode && content) {
-                 const json = cleanAndParseJson(content);
-                 return json ? JSON.stringify(json) : content;
-            }
-            return content;
-        }
-    } catch (e: any) {
-        console.warn("Grok Failed:", e);
-        errors.push(e.message);
-    }
-
-    // 3. Try Gemini (ĐÃ FIX: Dùng systemInstruction chuẩn)
     const ai = getGeminiClient();
-    if (ai) {
-        try {
-            const response = await ai.models.generateContent({
-                model: fallbackModelGemini,
-                contents: userPrompt,
-                config: {
-                    systemInstruction: systemPrompt,
-                    responseMimeType: jsonMode ? 'application/json' : 'text/plain'
-                }
-            });
-            return response.text;
-        } catch (e: any) {
-            console.warn("Gemini Failed:", e);
-            errors.push(getFriendlyError(e, 'Gemini'));
-        }
-    } else {
-        errors.push("Gemini: Key not configured");
-    }
+    if (!ai) throw new Error("API Key not configured.");
 
-    throw new Error("All AI services failed.\n" + errors.join('\n'));
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            config: {
+                systemInstruction: systemPrompt,
+                responseMimeType: jsonMode ? 'application/json' : 'text/plain'
+            },
+            contents: userPrompt
+        });
+        return response.text;
+    } catch (e: any) {
+        console.warn("AI Failed:", e);
+        throw new Error(getFriendlyError(e));
+    }
 };
 
 // --- UTILS ---
@@ -290,7 +161,7 @@ export const generateVideoMetadata = async (topic: string, tone: string, languag
   const systemPrompt = `YouTube SEO Expert. Tone: ${tone}. Language: ${langName}.`;
   const userPrompt = `Generate metadata for: "${topic}". JSON: { "titles": [], "description": "", "tags": "" }`;
 
-  return await smartChatGen(systemPrompt, userPrompt, 'gemini-2.5-flash-preview', true);
+  return await callGemini(systemPrompt, userPrompt, 'gemini-3-flash-preview', true);
 };
 
 /**
@@ -305,25 +176,25 @@ export const generateScript = async (title: string, points: string, language: La
   const ai = getGeminiClient();
   const langName = getLangName(language);
   
+  // Try Thinking Mode first
   if (ai) {
       try {
         const response = await ai.models.generateContent({
             model: "gemini-3-pro-preview",
             contents: `Write a deep, engaging YouTube script for "${title}". Key points: ${points}. Language: ${langName}.`,
             config: {
-                thinkingConfig: { thinkingBudget: 32768 } 
+                thinkingConfig: { thinkingBudget: 16000 } // Reduced budget to avoid hitting quota too fast
             }
         });
         return response.text;
       } catch (e) {
-        console.warn("Gemini Thinking Mode failed, falling back...", e);
-        if(String(e).includes('429')) throw new Error(getFriendlyError(e, 'Gemini'));
+        console.warn("Thinking Mode failed, falling back to standard...", e);
       }
   }
 
   const systemPrompt = `Professional Scriptwriter. Language: ${langName}.`;
   const userPrompt = `Title: "${title}". Points: ${points}.`;
-  return await smartChatGen(systemPrompt, userPrompt, 'gemini-3-pro-preview', false);
+  return await callGemini(systemPrompt, userPrompt, 'gemini-3-pro-preview', false);
 };
 
 /**
@@ -353,15 +224,11 @@ export const findTrends = async (niche: string, language: Language) => {
            groundingMetadata: response.candidates?.[0]?.groundingMetadata
         };
       } catch (error: any) {
-        console.warn("Gemini Search Error:", error);
-        if (error.message.includes('429')) throw new Error(getFriendlyError(error, 'Gemini'));
+        console.warn("Search Error:", error);
+        throw new Error(getFriendlyError(error));
       }
   }
-
-  const systemPrompt = `Trend Analyst. Language: ${langName}.`;
-  const userPrompt = `Suggest 5 trends for "${niche}".`;
-  const text = await smartChatGen(systemPrompt, userPrompt, 'gemini-3-flash-preview', false);
-  return { text, groundingMetadata: null };
+  throw new Error("Client Init Failed");
 };
 
 /**
@@ -379,35 +246,22 @@ export const analyzeThumbnail = async (base64Image: string, mimeType: string, co
 
   if (ai) {
     try {
-        // ĐÃ FIX: Truyền mảng trực tiếp, không bọc trong Object { parts: [] }
         const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: [
+        contents: {
+            parts: [
             { inlineData: { mimeType: mimeType, data: base64Image } },
             { text: promptText }
-        ]
+            ]
+        }
         });
         return response.text;
     } catch (error: any) {
-        console.warn("Gemini Vision failed", error);
-        if (error.message.includes('429')) throw new Error(getFriendlyError(error, 'Gemini'));
+        console.warn("Vision failed", error);
+        throw new Error(getFriendlyError(error));
     }
   }
-  
-  if (getApiKey('openai')) {
-      try {
-        const messages = [{
-            role: "user",
-            content: [
-                { type: "text", text: promptText },
-                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
-            ]
-        }];
-        return await callOpenAIChat(messages, 'gpt-4o');
-      } catch (e: any) {}
-  }
-
-  throw new Error("Analysis failed.");
+  throw new Error("Client Init Failed");
 };
 
 /**
@@ -424,22 +278,23 @@ export const analyzeUploadedVideo = async (base64Data: string, mimeType: string,
     
     if (ai) {
         try {
-            // ĐÃ FIX: Truyền mảng trực tiếp
             const response = await ai.models.generateContent({
                 model: 'gemini-3-pro-preview',
-                contents: [
-                    { inlineData: { mimeType, data: base64Data } },
-                    { text: `${prompt}. Language: ${langName}.` }
-                ]
+                contents: {
+                    parts: [
+                        { inlineData: { mimeType, data: base64Data } },
+                        { text: `${prompt}. Language: ${langName}.` }
+                    ]
+                }
             });
             return response.text;
         } catch (e: any) {
             console.error("Video Analysis Error:", e);
-            throw new Error(getFriendlyError(e, 'Gemini'));
+            throw new Error(getFriendlyError(e));
         }
     }
     
-    throw new Error("Gemini API Key required for video analysis.");
+    throw new Error("API Key required for video analysis.");
 };
 
 /**
@@ -465,15 +320,11 @@ export const auditVideo = async (url: string, language: Language) => {
         });
         return { text: response.text, groundingMetadata: response.candidates?.[0]?.groundingMetadata };
     } catch (error: any) {
-        console.warn("Gemini Audit Error:", error);
-        if (error.message.includes('429')) throw new Error(getFriendlyError(error, 'Gemini'));
+        console.warn("Audit Error:", error);
+        throw new Error(getFriendlyError(error));
     }
   }
-
-  const systemPrompt = `YouTube Expert. Lang: ${langName}.`;
-  const userPrompt = `Analyze URL: ${url}. JSON format.`;
-  const text = await smartChatGen(systemPrompt, userPrompt, 'gemini-3-flash-preview', true);
-  return { text, groundingMetadata: null };
+  throw new Error("Client Init Failed");
 };
 
 /**
@@ -484,54 +335,104 @@ export const generateThumbnailImage = async (prompt: string, aspectRatio: string
 
   const ai = getGeminiClient();
   
-  // Model ảnh của Google thường dùng tiền tố imagen
-  let model = 'imagen-3.0-generate-002';
+  let model = 'gemini-2.5-flash-image';
+  if (quality === 'hd') {
+      model = 'gemini-3-pro-image-preview';
+  }
 
   if (ai) {
     try {
-        // ĐÃ FIX: Sử dụng hàm generateImages thay vì generateContent
-        const response = await ai.models.generateImages({
+        const response = await ai.models.generateContent({
             model: model,
-            prompt: `YouTube Thumbnail: ${prompt}`,
+            contents: { parts: [{ text: `YouTube Thumbnail: ${prompt}` }] },
             config: { 
-                aspectRatio: aspectRatio as any,
-                outputMimeType: "image/png"
+                imageConfig: { 
+                    aspectRatio: aspectRatio as any,
+                } 
             }
         });
-        
-        const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
-        if (imageBytes) {
-             return `data:image/png;base64,${imageBytes}`;
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
         }
     } catch (e: any) {
-        console.warn("Gemini Image Gen failed:", e);
-        if (e.message.includes('429')) throw new Error(getFriendlyError(e, 'Gemini'));
+        console.warn("Image Gen failed:", e);
+        throw new Error(getFriendlyError(e));
     }
   }
-  
-  // Fallback OpenAI
-  if (getApiKey('openai')) {
-      try {
-        const b64Json = await callOpenAIImage(`YouTube Thumbnail ${aspectRatio}: ${prompt}`);
-        return `data:image/png;base64,${b64Json}`;
-      } catch (e) {}
-  }
-
   throw new Error("Image generation failed.");
 };
 
 /**
- * VIRAL STRATEGY
+ * VIRAL STRATEGY (ADVANCED)
  */
 export const generateViralStrategy = async (topic: string, language: Language) => {
    if (!checkApiKey()) {
       await mockDelay(2500);
       return { text: JSON.stringify({ strategyTitle: "[DEMO] Strategy" }), groundingMetadata: null };
    }
-   const systemPrompt = `YouTube Strategist. Lang: ${getLangName(language)}.`;
-   const userPrompt = `Strategy for "${topic}". JSON format.`;
-   const text = await smartChatGen(systemPrompt, userPrompt, 'gemini-3-pro-preview', true);
-   return { text, groundingMetadata: null };
+
+   const langName = getLangName(language);
+   const ai = getGeminiClient();
+
+   if (!ai) throw new Error("Init Failed");
+
+   const systemPrompt = `You are a World-Class YouTube Strategist (MrBeast level).
+   Analyze the input topic/URL and provide a MASTERCLASS detailed strategy in JSON format.
+   Language: ${langName}.
+   
+   Output JSON Structure (Strict):
+   {
+      "strategyTitle": "A click-worthy title for this strategy report",
+      "targetAudience": {
+         "persona": "Detailed viewer persona (age, interests)",
+         "painPoints": ["pain1", "pain2"],
+         "desires": ["desire1", "desire2"]
+      },
+      "competitorGap": "What are competitors missing that this video will exploit?",
+      "hooks": [
+         { "type": "Curiosity", "script": "Hook script 1...", "why": "Explanation" },
+         { "type": "Story", "script": "Hook script 2...", "why": "Explanation" },
+         { "type": "Controversial", "script": "Hook script 3...", "why": "Explanation" }
+      ],
+      "thumbnailStrategy": {
+         "visualDescription": "Detailed image prompt for AI generation",
+         "textOverlay": "Short text on image",
+         "colorPsychology": "Why use these colors",
+         "layout": "Composition details (e.g. Rule of thirds, Facial expression)"
+      },
+      "metadata": {
+         "titleOptions": ["Title 1", "Title 2", "Title 3", "Title 4", "Title 5"],
+         "description": "SEO optimized description",
+         "tags": ["tag1", "tag2"]
+      },
+      "scriptStructure": {
+         "intro": "The Setup (0-30s)",
+         "risingAction": "Building value/tension",
+         "climax": "The Payoff/Key Insight",
+         "cta": "Engagement trigger"
+      },
+      "engagementTriggers": {
+         "pinnedComment": "Text for a pinned comment to start debate",
+         "inVideoQuestion": "Specific question to ask viewers"
+      },
+      "launchPlan": ["Step 1 (Pre-publish)", "Step 2 (First hour)", "Step 3 (24h later)", "Step 4 (Community tab)"]
+   }`;
+
+   try {
+     const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `Create a Viral Strategy for: "${topic}".`,
+        config: {
+            systemInstruction: systemPrompt,
+            responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 8000 }
+        }
+     });
+     return { text: response.text, groundingMetadata: null };
+   } catch (e: any) {
+     console.warn("Strategy Gen - Thinking failed, fallback to standard", e);
+     return { text: await callGemini(systemPrompt, `Strategy for "${topic}"`, 'gemini-3-flash-preview', true), groundingMetadata: null };
+   }
 };
 
 export const getPublicChannelInfo = async (query: string, language: Language) => {
@@ -547,7 +448,7 @@ export const getPublicChannelInfo = async (query: string, language: Language) =>
         return response.text;
       } catch (error) {}
   }
-  return await smartChatGen("Analyst", `Channel info "${query}". JSON.`, 'gemini-3-flash-preview', true);
+  return await callGemini("Analyst", `Channel info "${query}". JSON.`, 'gemini-3-flash-preview', true);
 };
 
 // --- NEW FEATURES ---
@@ -557,7 +458,7 @@ export const getPublicChannelInfo = async (query: string, language: Language) =>
  */
 export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:16') => {
     const ai = getGeminiClient();
-    if (!ai) throw new Error("Gemini API Key Required for Veo");
+    if (!ai) throw new Error("API Key Required for Veo");
 
     try {
         console.log("Starting Veo Generation...");
@@ -573,13 +474,13 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:
 
         while (!operation.done) {
             await new Promise(resolve => setTimeout(resolve, 5000));
-            operation = await ai.operations.getVideosOperation({ operation: operation.name || operation }); // Fix fallback name
+            operation = await ai.operations.getVideosOperation({ operation: operation });
         }
 
         const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
         if (!downloadLink) throw new Error("No video URI returned");
 
-        const apiKey = getApiKey('gemini');
+        const apiKey = getApiKey();
         const videoResponse = await fetch(`${downloadLink}&key=${apiKey}`);
         if (!videoResponse.ok) throw new Error("Failed to download video bytes");
         
@@ -588,7 +489,7 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:
 
     } catch (e: any) {
         console.error("Veo Error:", e);
-        throw new Error(getFriendlyError(e, 'Veo'));
+        throw new Error(getFriendlyError(e));
     }
 };
 
@@ -597,12 +498,12 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: '16:9' | '9:
  */
 export const generateSpeech = async (text: string, voiceName: 'Kore' | 'Puck' | 'Charon' | 'Fenrir' | 'Zephyr' = 'Kore') => {
     const ai = getGeminiClient();
-    if (!ai) throw new Error("Gemini API Key Required for TTS");
+    if (!ai) throw new Error("API Key Required for TTS");
     
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-tts",
-            contents: [{ text: text }], // ĐÃ FIX: Chỉ cần mảng chứa text
+            contents: [{ parts: [{ text: text }] }],
             config: {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: {
@@ -617,7 +518,7 @@ export const generateSpeech = async (text: string, voiceName: 'Kore' | 'Puck' | 
         if (!base64Audio) throw new Error("No audio data returned");
         return base64Audio;
     } catch (e: any) {
-        throw new Error(getFriendlyError(e, 'Gemini TTS'));
+        throw new Error(getFriendlyError(e));
     }
 };
 
@@ -626,20 +527,21 @@ export const generateSpeech = async (text: string, voiceName: 'Kore' | 'Puck' | 
  */
 export const transcribeAudio = async (base64Audio: string, mimeType: string) => {
     const ai = getGeminiClient();
-    if (!ai) throw new Error("Gemini API Key Required");
+    if (!ai) throw new Error("API Key Required");
 
     try {
-        // ĐÃ FIX: Truyền mảng trực tiếp cho Audio
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: [
-                { inlineData: { mimeType: mimeType, data: base64Audio } },
-                { text: "Transcribe this audio accurately." }
-            ]
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: mimeType, data: base64Audio } },
+                    { text: "Transcribe this audio accurately." }
+                ]
+            }
         });
         return response.text;
     } catch (e: any) {
-        throw new Error(getFriendlyError(e, 'Gemini Transcription'));
+        throw new Error(getFriendlyError(e));
     }
 };
 
@@ -648,7 +550,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string) => 
  */
 export const createChatSession = (systemInstruction: string) => {
     const ai = getGeminiClient();
-    if (!ai) throw new Error("Gemini Key Required");
+    if (!ai) throw new Error("API Key Required");
     
     return ai.chats.create({
         model: 'gemini-3-pro-preview',

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { generateViralStrategy, generateThumbnailImage, cleanAndParseJson, checkApiKey } from '../../services/geminiService';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Zap, Loader2, Target, Type, Image as ImageIcon, FileText, Megaphone, CheckCircle2, Copy, Download, SearchCheck, ThumbsUp, ThumbsDown, Tv, AlertCircle, Globe, ExternalLink } from 'lucide-react';
+import { Zap, Loader2, Target, Type, Image as ImageIcon, FileText, Megaphone, CheckCircle2, Copy, Download, SearchCheck, Tv, AlertCircle, Globe, ExternalLink, Lightbulb, Users, BrainCircuit, Rocket, Palette, MessageSquare } from 'lucide-react';
 import { AppView } from '../../types';
 
 interface ViralStrategyProps {
@@ -17,6 +17,7 @@ const ViralStrategy: React.FC<ViralStrategyProps> = ({ initialTopic, onNavigate 
   const [result, setResult] = useState<any>(null);
   const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'script' | 'visuals' | 'launch'>('overview');
 
   useEffect(() => {
     if (initialTopic) {
@@ -33,26 +34,35 @@ const ViralStrategy: React.FC<ViralStrategyProps> = ({ initialTopic, onNavigate 
 
     try {
       const getList = (arr: any[]) => Array.isArray(arr) ? arr.map(s => `- ${s}`).join('\n') : '';
-      const getTags = (arr: any[]) => Array.isArray(arr) ? arr.map(t => `#${t}`).join(' ') : '';
+      const getHooks = (arr: any[]) => Array.isArray(arr) ? arr.map(h => `**${h.type}:** ${h.script} (${h.why})`).join('\n\n') : '';
 
       const content = `
 # ${result.strategyTitle || 'Viral Strategy'}
-${result.originalChannel ? `**Original Channel:** ${result.originalChannel}\n` : ''}
 
-## Analysis
-**Strengths:**
-${getList(result.analysis?.strengths)}
+## 🎯 Target Audience
+**Persona:** ${result.targetAudience?.persona || 'N/A'}
+**Pain Points:** ${getList(result.targetAudience?.painPoints)}
+**Desires:** ${getList(result.targetAudience?.desires)}
 
-**Weaknesses (Needs Improvement):**
-${getList(result.analysis?.weaknesses)}
+## 💡 Competitor Gap
+${result.competitorGap || 'N/A'}
 
-## Target Audience
-${result.targetAudience || 'N/A'}
+## 🪝 Hooks (First 30s)
+${getHooks(result.hooks)}
 
-## Trend Context
-${result.trendContext || 'N/A'}
+## 🖼️ Thumbnail Strategy
+**Visual:** ${result.thumbnailStrategy?.visualDescription || 'N/A'}
+**Text Overlay:** ${result.thumbnailStrategy?.textOverlay || 'N/A'}
+**Color Psychology:** ${result.thumbnailStrategy?.colorPsychology || 'N/A'}
+**Layout:** ${result.thumbnailStrategy?.layout || 'N/A'}
 
-## Metadata
+## 📝 Script Structure
+**Intro:** ${result.scriptStructure?.intro || 'N/A'}
+**Rising Action:** ${result.scriptStructure?.risingAction || 'N/A'}
+**Climax:** ${result.scriptStructure?.climax || 'N/A'}
+**CTA:** ${result.scriptStructure?.cta || 'N/A'}
+
+## 📈 Metadata
 ### Titles
 ${getList(result.metadata?.titleOptions)}
 
@@ -60,27 +70,21 @@ ${getList(result.metadata?.titleOptions)}
 ${result.metadata?.description || 'N/A'}
 
 ### Tags
-${getTags(result.metadata?.tags)}
+${getList(result.metadata?.tags)}
 
-## Thumbnail Idea
-**Visual:** ${result.thumbnailIdea?.visualDescription || 'N/A'}
-**Text Overlay:** ${result.thumbnailIdea?.textOverlay || 'N/A'}
+## 🚀 Launch Plan
+${getList(result.launchPlan)}
 
-## Script Outline
-**Hook:** ${result.scriptOutline?.hook || 'N/A'}
-**Content Beats:**
-${getList(result.scriptOutline?.contentBeats)}
-**CTA:** ${result.scriptOutline?.cta || 'N/A'}
-
-## Promotion Plan
-${getList(result.promotionPlan)}
+## 💬 Engagement Triggers
+**Pinned Comment:** ${result.engagementTriggers?.pinnedComment || 'N/A'}
+**Question to Ask:** ${result.engagementTriggers?.inVideoQuestion || 'N/A'}
       `.trim();
 
       const blob = new Blob([content], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `TubeGrow-Strategy-${Date.now()}.md`;
+      a.download = `TubeGrow-MasterStrategy-${Date.now()}.md`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -94,43 +98,37 @@ ${getList(result.promotionPlan)}
   const handleGenerate = async () => {
     if (!topic) return;
     
-    // Reset state
     setLoading(true);
     setResult(null);
     setGeneratedThumbnail(null);
     setError(null);
+    setActiveTab('overview');
     
     if (!checkApiKey()) {
-        setError("API Key is missing or invalid. Please check metadata.json or environment variables.");
+        setError("API Key is missing or invalid.");
         setLoading(false);
         return;
     }
 
     try {
-      // 1. Generate Text Strategy
       const { text, groundingMetadata } = await generateViralStrategy(topic, language);
       
-      if (!text) {
-          throw new Error("AI returned empty response.");
-      }
+      if (!text) throw new Error("AI returned empty response.");
 
       const parsed = cleanAndParseJson(text);
       
       if (parsed) {
           setResult({ ...parsed, groundingMetadata });
 
-          // 2. Generate Image immediately if we have a description
-          if (parsed.thumbnailIdea?.visualDescription) {
+          if (parsed.thumbnailStrategy?.visualDescription) {
               setImageLoading(true);
-              generateThumbnailImage(parsed.thumbnailIdea.visualDescription)
-                .then(url => {
-                    if(url) setGeneratedThumbnail(url);
-                })
+              generateThumbnailImage(parsed.thumbnailStrategy.visualDescription)
+                .then(url => { if(url) setGeneratedThumbnail(url); })
                 .catch(err => console.error("Image gen failed", err))
                 .finally(() => setImageLoading(false));
           }
       } else {
-           throw new Error("Could not understand AI response. Please try again with a different topic.");
+           throw new Error("Could not understand AI response.");
       }
     } catch (e: any) {
       console.error("Strategy Gen Error", e);
@@ -141,6 +139,215 @@ ${getList(result.promotionPlan)}
   };
 
   const isUrl = topic.toLowerCase().includes('youtube.com') || topic.toLowerCase().includes('youtu.be');
+
+  // --- RENDER HELPERS ---
+  
+  const renderOverviewTab = () => (
+      <div className="space-y-6 animate-fade-in">
+          {/* Top Level Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
+                  <h3 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
+                      <Users size={20} /> Target Audience
+                  </h3>
+                  <p className="text-gray-300 italic mb-4">"{result.targetAudience?.persona}"</p>
+                  <div className="space-y-3">
+                      <div>
+                          <span className="text-xs font-bold text-red-400 uppercase tracking-wide">Pain Points</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                              {result.targetAudience?.painPoints?.map((p:string, i:number) => (
+                                  <span key={i} className="bg-red-900/20 text-red-200 px-2 py-1 rounded text-xs border border-red-500/20">{p}</span>
+                              ))}
+                          </div>
+                      </div>
+                      <div>
+                          <span className="text-xs font-bold text-green-400 uppercase tracking-wide">Desires</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                              {result.targetAudience?.desires?.map((p:string, i:number) => (
+                                  <span key={i} className="bg-green-900/20 text-green-200 px-2 py-1 rounded text-xs border border-green-500/20">{p}</span>
+                              ))}
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5 relative overflow-hidden">
+                   <div className="absolute top-0 right-0 p-4 opacity-10"><BrainCircuit size={100} /></div>
+                   <h3 className="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2 relative z-10">
+                      <Lightbulb size={20} /> The Competitor Gap
+                  </h3>
+                  <p className="text-gray-200 text-lg leading-relaxed relative z-10">
+                      {result.competitorGap}
+                  </p>
+              </div>
+          </div>
+
+          {/* Engagement Triggers */}
+          <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 p-6 rounded-2xl border border-white/5">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <MessageSquare size={20} /> Engagement Triggers
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-black/30 p-4 rounded-xl border-l-4 border-purple-500">
+                      <span className="text-xs text-purple-400 font-bold uppercase block mb-1">Pinned Comment Strategy</span>
+                      <p className="text-gray-300 text-sm">"{result.engagementTriggers?.pinnedComment}"</p>
+                  </div>
+                  <div className="bg-black/30 p-4 rounded-xl border-l-4 border-blue-500">
+                      <span className="text-xs text-blue-400 font-bold uppercase block mb-1">In-Video Question</span>
+                      <p className="text-gray-300 text-sm">"{result.engagementTriggers?.inVideoQuestion}"</p>
+                  </div>
+              </div>
+          </div>
+      </div>
+  );
+
+  const renderScriptTab = () => (
+      <div className="space-y-6 animate-fade-in">
+          {/* HOOKS */}
+          <div className="space-y-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Zap className="text-yellow-500" /> Hook Options (Choose One)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {result.hooks?.map((hook: any, i: number) => (
+                      <div key={i} className="bg-neutral-900/60 p-5 rounded-xl border border-white/10 hover:border-yellow-500/50 transition-colors group">
+                          <div className="flex justify-between items-center mb-3">
+                              <span className="text-xs font-bold bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded uppercase">{hook.type}</span>
+                          </div>
+                          <p className="text-gray-200 font-medium mb-3 text-sm">"{hook.script}"</p>
+                          <p className="text-gray-500 text-xs italic border-t border-white/5 pt-2">Why: {hook.why}</p>
+                      </div>
+                  ))}
+              </div>
+          </div>
+
+          {/* STRUCTURE */}
+          <div className="bg-neutral-900/40 p-6 rounded-2xl border border-white/5">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
+                  <FileText className="text-green-500" /> Narrative Arc
+              </h3>
+              <div className="space-y-0 relative">
+                  {/* Vertical Line */}
+                  <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-neutral-800"></div>
+
+                  {[
+                      { label: "Intro & Setup", content: result.scriptStructure?.intro, color: "text-green-400" },
+                      { label: "Rising Action", content: result.scriptStructure?.risingAction, color: "text-blue-400" },
+                      { label: "The Climax", content: result.scriptStructure?.climax, color: "text-red-400" },
+                      { label: "Call to Action", content: result.scriptStructure?.cta, color: "text-purple-400" },
+                  ].map((part, i) => (
+                      <div key={i} className="relative pl-12 pb-8 last:pb-0">
+                          <div className="absolute left-2 top-0 w-4 h-4 rounded-full bg-neutral-800 border-2 border-neutral-600"></div>
+                          <h4 className={`text-sm font-bold uppercase mb-1 ${part.color}`}>{part.label}</h4>
+                          <p className="text-gray-300 text-sm">{part.content}</p>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      </div>
+  );
+
+  const renderVisualsTab = () => (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+          {/* Thumbnail Preview & Strategy */}
+          <div className="space-y-6">
+              <div className="w-full aspect-video bg-black/40 rounded-xl border border-purple-500/20 overflow-hidden flex items-center justify-center relative group">
+                  {imageLoading ? (
+                      <div className="flex flex-col items-center text-purple-400">
+                          <Loader2 className="animate-spin mb-2" size={32} />
+                          <span className="text-xs animate-pulse">Designing Thumbnail...</span>
+                      </div>
+                  ) : generatedThumbnail ? (
+                      <>
+                        <img src={generatedThumbnail} alt="AI Thumbnail" className="w-full h-full object-cover" />
+                        <a 
+                          href={generatedThumbnail} 
+                          download={`thumbnail-${Date.now()}.png`}
+                          className="absolute bottom-3 right-3 bg-black/60 hover:bg-purple-600 text-white px-3 py-2 rounded-lg transition-all flex items-center gap-2"
+                        >
+                          <Download size={16} />
+                          <span className="text-xs font-bold">Download</span>
+                        </a>
+                      </>
+                  ) : (
+                      <div className="text-gray-500 text-sm">Image generation failed</div>
+                  )}
+              </div>
+
+              <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5 space-y-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2"><Palette size={18} /> Visual Psychology</h3>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                       <div className="bg-black/30 p-3 rounded-lg">
+                           <span className="text-xs text-gray-500 uppercase font-bold block mb-1">Color Theory</span>
+                           <p className="text-sm text-purple-300">{result.thumbnailStrategy?.colorPsychology}</p>
+                       </div>
+                       <div className="bg-black/30 p-3 rounded-lg">
+                           <span className="text-xs text-gray-500 uppercase font-bold block mb-1">Layout</span>
+                           <p className="text-sm text-blue-300">{result.thumbnailStrategy?.layout}</p>
+                       </div>
+                  </div>
+                  <div className="bg-black/30 p-3 rounded-lg">
+                        <span className="text-xs text-gray-500 uppercase font-bold block mb-1">Text Overlay</span>
+                        <p className="text-xl font-black text-white uppercase tracking-tight">{result.thumbnailStrategy?.textOverlay}</p>
+                   </div>
+              </div>
+          </div>
+
+          {/* Metadata */}
+          <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5 flex flex-col h-full">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Type size={18} /> High-CTR Titles</h3>
+              <div className="space-y-3 mb-8 flex-1">
+                 {result.metadata?.titleOptions?.map((title: string, i: number) => (
+                    <div key={i} className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-white/5 hover:border-red-500/50 transition-colors group">
+                        <span className="text-gray-200 font-medium text-sm">{title}</span>
+                        <button onClick={() => copyToClipboard(title)} className="text-gray-500 hover:text-white opacity-0 group-hover:opacity-100">
+                            <Copy size={14} />
+                        </button>
+                    </div>
+                 ))}
+              </div>
+
+              <div>
+                  <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Description Snippet</h3>
+                  <div className="bg-black/20 p-4 rounded-xl border border-white/5 text-sm text-gray-400 max-h-40 overflow-y-auto custom-scrollbar whitespace-pre-wrap">
+                      {result.metadata?.description}
+                  </div>
+              </div>
+              
+              <div className="mt-4">
+                   <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Tags</h3>
+                   <div className="flex flex-wrap gap-2">
+                        {result.metadata?.tags?.map((tag: string, i: number) => (
+                            <span key={i} className="text-xs bg-neutral-800 text-gray-400 px-2 py-1 rounded">#{tag}</span>
+                        ))}
+                   </div>
+              </div>
+          </div>
+      </div>
+  );
+
+  const renderLaunchTab = () => (
+      <div className="animate-fade-in">
+          <div className="bg-gradient-to-br from-blue-900/20 to-green-900/20 p-8 rounded-2xl border border-blue-500/20">
+              <h3 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
+                  <Rocket className="text-blue-400" /> Launch Protocol
+              </h3>
+              <div className="space-y-6">
+                  {result.launchPlan?.map((step: string, i: number) => (
+                      <div key={i} className="flex gap-4 items-start">
+                          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white flex-shrink-0 shadow-lg shadow-blue-600/30">
+                              {i + 1}
+                          </div>
+                          <div className="bg-black/30 p-4 rounded-xl flex-1 border border-white/5">
+                              <p className="text-gray-200 font-medium">{step}</p>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      </div>
+  );
 
   return (
     <div className="max-w-6xl mx-auto pb-12 relative min-h-[80vh]">
@@ -169,7 +376,8 @@ ${getList(result.promotionPlan)}
             </div>
         )}
 
-        <div className="bg-gradient-to-r from-neutral-900 to-neutral-800 p-8 rounded-2xl border border-yellow-500/20 mb-10 shadow-lg shadow-yellow-900/10">
+        {/* INPUT SECTION */}
+        <div className="bg-gradient-to-r from-neutral-900 to-neutral-800 p-8 rounded-2xl border border-yellow-500/20 mb-8 shadow-lg shadow-yellow-900/10">
           <label className="block text-lg font-medium text-white mb-3">{t.viral.topicLabel}</label>
           <div className="flex flex-col md:flex-row gap-4">
             <input
@@ -190,279 +398,71 @@ ${getList(result.promotionPlan)}
           </div>
         </div>
 
+        {/* RESULTS SECTION */}
         {result && (
-          <div className="space-y-6 animate-fade-in relative">
-            {/* Header */}
-            <div className="text-center mb-8 relative">
-              
-              {/* Audit Button (Desktop) */}
-              {onNavigate && (
-                <div className="absolute left-0 top-0 hidden md:block">
-                  <button
-                    onClick={() => onNavigate(AppView.VIDEO_AUDIT, { url: isUrl ? topic : '' })}
-                    className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg group"
-                  >
-                    <SearchCheck size={18} className="group-hover:text-blue-400 transition-colors" />
-                    <span className="text-sm font-medium">{t.channel.actions.audit}</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Download Strategy Button (Desktop) */}
-              <div className="absolute right-0 top-0 hidden md:block">
-                <button
-                  onClick={handleDownloadStrategy}
-                  className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg group"
-                >
-                  <Download size={18} className="group-hover:text-yt-red transition-colors" />
-                  <span className="text-sm font-medium">{t.viral.btnDownloadStrategy}</span>
-                </button>
-              </div>
-
-              <h3 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-500 mb-2">
-                {result.strategyTitle || 'Strategy Generated'}
-              </h3>
-              
-              {/* Display Original Channel Name if available */}
-              {result.originalChannel && (
-                  <div className="flex items-center justify-center gap-2 mb-2 text-white bg-red-600/20 px-4 py-1 rounded-full w-fit mx-auto border border-red-500/30">
-                      <Tv size={16} className="text-red-400" />
-                      <span className="font-semibold">{result.originalChannel}</span>
-                  </div>
-              )}
-
-              <p className="text-gray-400 text-lg">{result.targetAudience}</p>
-
-              {/* Mobile Actions */}
-              <div className="md:hidden mt-4 flex justify-center gap-3 flex-wrap">
-                  <button
-                      onClick={handleDownloadStrategy}
-                      className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg"
-                  >
-                      <Download size={18} />
-                      <span className="text-sm font-medium">{t.viral.btnDownloadStrategy}</span>
-                  </button>
-                  
-                   {onNavigate && (
-                      <button
-                        onClick={() => onNavigate(AppView.VIDEO_AUDIT, { url: isUrl ? topic : '' })}
-                        className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg"
-                      >
-                        <SearchCheck size={18} />
-                        <span className="text-sm font-medium">{t.channel.actions.audit}</span>
-                      </button>
-                  )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Analysis Section (Strengths & Weaknesses) */}
-              {result.analysis && (
-                <div className="bg-neutral-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 lg:col-span-2">
-                   <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                     <SearchCheck size={24} className="text-blue-400" /> {t.viral.analysisSection}
-                   </h3>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Strengths */}
-                      <div className="bg-green-900/10 p-5 rounded-xl border border-green-500/20">
-                         <h4 className="text-green-400 font-bold mb-3 flex items-center gap-2">
-                           <ThumbsUp size={18} /> {t.viral.strengths}
-                         </h4>
-                         <ul className="space-y-2">
-                            {result.analysis.strengths?.map((item: string, i: number) => (
-                               <li key={i} className="flex gap-2 text-gray-300 text-sm">
-                                 <span className="text-green-500 mt-1">•</span> <span>{item}</span>
-                               </li>
-                            ))}
-                         </ul>
-                      </div>
-
-                      {/* Weaknesses */}
-                      <div className="bg-red-900/10 p-5 rounded-xl border border-red-500/20">
-                         <h4 className="text-red-400 font-bold mb-3 flex items-center gap-2">
-                           <ThumbsDown size={18} /> {t.viral.weaknesses}
-                         </h4>
-                         <ul className="space-y-2">
-                            {result.analysis.weaknesses?.map((item: string, i: number) => (
-                               <li key={i} className="flex gap-2 text-gray-300 text-sm">
-                                 <span className="text-red-500 mt-1">•</span> <span>{item}</span>
-                               </li>
-                            ))}
-                         </ul>
-                      </div>
-                   </div>
-                </div>
-              )}
-
-              {/* Trend Context */}
-              <div className="bg-neutral-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 lg:col-span-2">
-                 <h3 className="text-xl font-bold text-blue-400 mb-3 flex items-center gap-2">
-                   <Target size={24} /> {t.viral.trendSection}
-                 </h3>
-                 <p className="text-gray-200 leading-relaxed text-lg">{result.trendContext}</p>
-              </div>
-
-              {/* Thumbnail Idea & Image */}
-              <div className="bg-neutral-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 order-2 lg:order-1">
-                <h3 className="text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
-                   <ImageIcon size={24} /> {t.viral.thumbSection}
-                 </h3>
+          <div className="animate-fade-in relative">
+            
+            {/* Strategy Title Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                 <div>
+                    <h3 className="text-2xl md:text-3xl font-bold text-white leading-tight">{result.strategyTitle}</h3>
+                    <div className="flex items-center gap-2 mt-2">
+                        {isUrl && <span className="bg-red-600/20 text-red-400 text-xs font-bold px-2 py-1 rounded border border-red-600/30 flex items-center gap-1"><Tv size={12} /> Existing Video Analysis</span>}
+                        <span className="text-gray-500 text-sm">Generated by Gemini 3 Pro</span>
+                    </div>
+                 </div>
                  
-                 {/* AI Generated Image Display */}
-                 <div className="mb-4 w-full aspect-video bg-black/40 rounded-xl border border-purple-500/20 overflow-hidden flex items-center justify-center relative group">
-                    {imageLoading ? (
-                        <div className="flex flex-col items-center text-purple-400">
-                            <Loader2 className="animate-spin mb-2" size={32} />
-                            <span className="text-xs animate-pulse">Generating AI Image...</span>
-                        </div>
-                    ) : generatedThumbnail ? (
-                        <>
-                          <img src={generatedThumbnail} alt="AI Thumbnail" className="w-full h-full object-cover" />
-                          <a 
-                            href={generatedThumbnail} 
-                            download={`thumbnail-${Date.now()}.png`}
-                            className="absolute bottom-3 right-3 bg-black/60 hover:bg-purple-600 text-white px-3 py-2 rounded-lg transition-all flex items-center gap-2"
-                          >
-                            <Download size={16} />
-                            <span className="text-xs font-bold">{t.viral.downloadThumbnail}</span>
-                          </a>
-                        </>
-                    ) : (
-                        <div className="text-gray-500 text-sm">Image generation failed</div>
+                 <div className="flex gap-2">
+                     <button
+                        onClick={handleDownloadStrategy}
+                        className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg group"
+                        >
+                        <Download size={18} className="group-hover:text-green-400 transition-colors" />
+                        <span className="text-sm font-medium">Save .MD</span>
+                    </button>
+                    {onNavigate && (
+                        <button
+                            onClick={() => onNavigate(AppView.VIDEO_AUDIT, { url: isUrl ? topic : '' })}
+                            className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors shadow-lg group"
+                        >
+                            <SearchCheck size={18} className="group-hover:text-blue-400 transition-colors" />
+                            <span className="text-sm font-medium">Audit</span>
+                        </button>
                     )}
                  </div>
-
-                 <div className="space-y-4">
-                   <div className="bg-purple-900/10 p-4 rounded-xl border border-purple-500/20">
-                     <span className="text-xs font-bold text-purple-500 uppercase tracking-wider block mb-1">Visual Prompt</span>
-                     <p className="text-gray-200 text-sm">{result.thumbnailIdea?.visualDescription}</p>
-                   </div>
-                   <div className="bg-pink-900/10 p-4 rounded-xl border border-pink-500/20">
-                     <span className="text-xs font-bold text-pink-500 uppercase tracking-wider block mb-1">Text Overlay</span>
-                     <p className="text-xl font-black text-white font-outline-2 uppercase">{result.thumbnailIdea?.textOverlay}</p>
-                   </div>
-                 </div>
-              </div>
-
-              {/* Metadata (Titles & Desc) */}
-              <div className="bg-neutral-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 order-1 lg:order-2 flex flex-col">
-                <h3 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">
-                   <Type size={24} /> {t.viral.titleSection}
-                 </h3>
-                 
-                 <div className="space-y-3 mb-6">
-                   {result.metadata?.titleOptions?.map((title: string, i: number) => (
-                     <div key={i} className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-white/5 text-gray-200 font-medium hover:border-red-500/50 transition-colors group">
-                       <span>{title}</span>
-                       <button onClick={() => copyToClipboard(title)} className="text-gray-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Copy size={16} />
-                       </button>
-                     </div>
-                   ))}
-                 </div>
-
-                 {result.metadata?.description && (
-                    <div className="bg-black/20 p-4 rounded-xl border border-white/5 mb-4 flex-1">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-xs font-bold text-gray-500 uppercase">Video Description</span>
-                          <button onClick={() => copyToClipboard(result.metadata.description)} className="text-gray-500 hover:text-white">
-                              <Copy size={14} />
-                          </button>
-                        </div>
-                        <p className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed custom-scrollbar max-h-64 overflow-y-auto">{result.metadata.description}</p>
-                    </div>
-                 )}
-
-                 <div className="flex flex-wrap gap-2 mt-auto">
-                    {result.metadata?.tags?.map((tag: string, i: number) => (
-                      <span key={i} className="text-xs text-gray-400 bg-neutral-800 px-2 py-1 rounded-full">#{tag}</span>
-                    ))}
-                 </div>
-              </div>
-
-              {/* Script Outline */}
-              <div className="bg-neutral-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 lg:col-span-2 order-3">
-                 <h3 className="text-xl font-bold text-green-400 mb-4 flex items-center gap-2">
-                   <FileText size={24} /> {t.viral.scriptSection}
-                 </h3>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-neutral-800/50 p-4 rounded-xl border border-white/5">
-                      <span className="text-green-500 font-bold mb-2 block">THE HOOK (0-15s)</span>
-                      <p className="text-sm text-gray-300">{result.scriptOutline?.hook}</p>
-                    </div>
-                    <div className="bg-neutral-800/50 p-4 rounded-xl border border-white/5">
-                      <span className="text-green-500 font-bold mb-2 block">THE MEAT</span>
-                      <ul className="space-y-2">
-                        {result.scriptOutline?.contentBeats?.map((beat: string, i: number) => (
-                          <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
-                            <span className="text-green-500/50 mt-1">•</span> {beat}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="bg-neutral-800/50 p-4 rounded-xl border border-white/5">
-                       <span className="text-green-500 font-bold mb-2 block">THE CTA</span>
-                       <p className="text-sm text-gray-300">{result.scriptOutline?.cta}</p>
-                    </div>
-                 </div>
-              </div>
-
-               {/* Promotion Plan */}
-               <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 p-6 rounded-2xl border border-blue-500/20 lg:col-span-2 order-4">
-                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                   <Megaphone size={24} /> {t.viral.promoSection}
-                 </h3>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   {result.promotionPlan?.map((plan: string, i: number) => (
-                     <div key={i} className="flex gap-3 bg-black/20 p-4 rounded-xl">
-                        <CheckCircle2 className="text-blue-400 flex-shrink-0" size={20} />
-                        <p className="text-sm text-gray-200">{plan}</p>
-                     </div>
-                   ))}
-                 </div>
-              </div>
-
             </div>
 
-             {/* Google Search Sources Footer */}
-             {result.groundingMetadata?.groundingChunks && (
-                <div className="mt-8 bg-black/20 p-4 rounded-xl border border-white/5">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <Globe size={12} /> Sources used for analysis
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                        {result.groundingMetadata.groundingChunks.map((chunk: any, i: number) => {
-                            if (chunk.web) {
-                                return (
-                                <a 
-                                    key={i} 
-                                    href={chunk.web.uri} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800 rounded-lg hover:bg-neutral-700 transition-colors text-xs text-gray-400 hover:text-white border border-white/5"
-                                >
-                                    <span className="truncate max-w-[200px]">{chunk.web.title}</span>
-                                    <ExternalLink size={10} className="flex-shrink-0" />
-                                </a>
-                                );
-                            }
-                            return null;
-                        })}
-                    </div>
-                </div>
-             )}
-
-            {/* Bottom Download Button */}
-            <div className="flex justify-center mt-8">
-              <button
-                onClick={handleDownloadStrategy}
-                className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl border border-white/10 transition-all hover:border-white/20 shadow-lg group"
-              >
-                <Download size={20} className="group-hover:text-yt-red transition-colors" />
-                <span className="font-bold">{t.viral.btnDownloadStrategy}</span>
-              </button>
+            {/* TABS NAVIGATION */}
+            <div className="flex overflow-x-auto pb-2 mb-6 gap-2 border-b border-white/10 custom-scrollbar">
+                {[
+                    { id: 'overview', label: 'Overview', icon: Target },
+                    { id: 'script', label: 'Script & Hooks', icon: FileText },
+                    { id: 'visuals', label: 'Visuals & SEO', icon: ImageIcon },
+                    { id: 'launch', label: 'Launch Plan', icon: Rocket },
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all whitespace-nowrap ${
+                            activeTab === tab.id 
+                            ? 'bg-neutral-800 text-white border-b-2 border-yellow-500' 
+                            : 'text-gray-500 hover:text-white hover:bg-neutral-800/50'
+                        }`}
+                    >
+                        <tab.icon size={18} className={activeTab === tab.id ? 'text-yellow-500' : ''} />
+                        {tab.label}
+                    </button>
+                ))}
             </div>
+
+            {/* TAB CONTENT */}
+            <div className="min-h-[400px]">
+                {activeTab === 'overview' && renderOverviewTab()}
+                {activeTab === 'script' && renderScriptTab()}
+                {activeTab === 'visuals' && renderVisualsTab()}
+                {activeTab === 'launch' && renderLaunchTab()}
+            </div>
+
           </div>
         )}
       </div>

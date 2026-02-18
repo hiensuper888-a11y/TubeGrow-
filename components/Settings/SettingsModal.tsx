@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Key, ExternalLink, Zap, MessageSquare, Bot } from 'lucide-react';
+import { X, Save, Key, Crown, CheckCircle2 } from 'lucide-react';
 import { getApiKey, setApiKey } from '../../services/geminiService';
 
 interface SettingsModalProps {
@@ -8,25 +8,19 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [geminiKey, setGeminiKey] = useState('');
-  const [openaiKey, setOpenaiKey] = useState('');
-  const [grokKey, setGrokKey] = useState('');
+  const [bonsaiKey, setLocalBonsaiKey] = useState('');
   const [status, setStatus] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
-      setGeminiKey(getApiKey('gemini'));
-      setOpenaiKey(getApiKey('openai'));
-      setGrokKey(getApiKey('grok'));
+      setLocalBonsaiKey(getApiKey());
       setStatus('');
     }
   }, [isOpen]);
 
   const handleSave = () => {
-    setApiKey('gemini', geminiKey);
-    setApiKey('openai', openaiKey);
-    setApiKey('grok', grokKey);
-    setStatus('Settings saved successfully!');
+    setApiKey(bonsaiKey);
+    setStatus('Bonsai Key saved successfully!');
     setTimeout(() => {
         onClose();
         window.location.reload(); // Reload to refresh services
@@ -49,64 +43,39 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </button>
         </div>
 
-        <div className="p-6 space-y-6">
-            <p className="text-sm text-gray-400">
-                Configure your API keys to enable AI features. We support auto-switching between providers for maximum reliability.
-            </p>
-
-            {/* Gemini */}
-            <div className="space-y-2">
-                <label className="text-sm font-bold text-blue-400 flex items-center gap-2">
-                    <Zap size={14} /> Google Gemini (Primary)
-                </label>
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            
+            {/* Bonsai Master Key */}
+            <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 p-5 rounded-xl border border-purple-500/30">
+                <div className="flex items-center gap-2 mb-3">
+                    <Crown size={18} className="text-yellow-400" />
+                    <label className="text-sm font-bold text-white uppercase tracking-wider">
+                        Bonsai API (Master Key)
+                    </label>
+                </div>
                 <input 
                     type="password" 
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKey(e.target.value)}
-                    placeholder="AIzaSy..."
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={bonsaiKey}
+                    onChange={(e) => setLocalBonsaiKey(e.target.value)}
+                    placeholder="sk_cr_..."
+                    className="w-full bg-black/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white text-sm focus:ring-2 focus:ring-purple-500 outline-none mb-3"
                 />
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-blue-400 flex items-center gap-1">
-                    Get Gemini Key <ExternalLink size={10} />
-                </a>
-            </div>
+                <p className="text-[10px] text-gray-400 mb-3">
+                    This single key powers all AI features (Gemini, GPT-4, Claude, Grok).
+                </p>
 
-            {/* OpenAI */}
-            <div className="space-y-2">
-                <label className="text-sm font-bold text-green-400 flex items-center gap-2">
-                    <MessageSquare size={14} /> OpenAI (ChatGPT/DALL-E)
-                </label>
-                <input 
-                    type="password" 
-                    value={openaiKey}
-                    onChange={(e) => setOpenaiKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                />
-                 <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-green-400 flex items-center gap-1">
-                    Get OpenAI Key <ExternalLink size={10} />
-                </a>
-            </div>
-
-            {/* Grok */}
-            <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                    <Bot size={14} /> xAI (Grok)
-                </label>
-                <input 
-                    type="password" 
-                    value={grokKey}
-                    onChange={(e) => setGrokKey(e.target.value)}
-                    placeholder="xai-..."
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:ring-2 focus:ring-gray-500 outline-none"
-                />
-                <a href="https://console.x.ai/" target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-white flex items-center gap-1">
-                    Get Grok Key <ExternalLink size={10} />
-                </a>
+                <div className="grid grid-cols-2 gap-2">
+                    {['Gemini 3 Pro', 'ChatGPT-4o', 'Claude 3.5', 'Grok 3'].map(model => (
+                        <div key={model} className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-green-500/20">
+                            <CheckCircle2 size={12} className="text-green-500" />
+                            <span className="text-xs text-green-100 font-medium">{model} Active</span>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {status && (
-                <div className="bg-green-500/10 text-green-400 text-sm p-3 rounded-lg text-center font-bold">
+                <div className="bg-green-500/10 text-green-400 text-sm p-3 rounded-lg text-center font-bold animate-pulse">
                     {status}
                 </div>
             )}
@@ -117,7 +86,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 onClick={handleSave}
                 className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
             >
-                <Save size={18} /> Save Configurations
+                <Save size={18} /> Save Configuration
             </button>
         </div>
       </div>
