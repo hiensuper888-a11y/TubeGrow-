@@ -19,7 +19,7 @@ const getApiKey = () => {
   } catch (e) {
     console.warn("Error accessing environment variables", e);
   }
-  return '';
+  return 'AIzaSyBkpRo1ZxRXTTV4djHQHT6A6SMKihdVUaw';
 };
 
 const apiKey = getApiKey();
